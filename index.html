@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遛趣星球 - 发现周边好玩的地方</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        window._AMapSecurityConfig = {
+            securityJsCode: '31663f8fc2e406fdd1de258b777e4db8',
+        }
+    </script>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-icon">
+                <i class="fas fa-map-marked-alt"></i>
+            </div>
+            <p>正在探索周边好去处...</p>
+        </div>
+    </div>
+
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <i class="fas fa-globe-americas"></i>
+                <span>遛趣星球</span>
+            </a>
+            <div class="nav-menu" id="navMenu">
+                <a href="#home" class="nav-link active">首页</a>
+                <a href="#category" class="nav-link">分类推荐</a>
+                <a href="#family" class="nav-link">亲子专区</a>
+                <a href="#popular" class="nav-link">热门打卡</a>
+                <a href="#favorites" class="nav-link">我的收藏</a>
+                <a href="#about" class="nav-link">关于我们</a>
+            </div>
+            <div class="nav-actions">
+                <div class="search-box">
+                    <input type="text" placeholder="搜索景点、美食..." id="searchInput">
+                    <button class="search-btn" id="searchBtn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero" id="home">
+            <div class="carousel" id="carousel">
+                <div class="carousel-slides">
+                    <div class="carousel-slide active">
+                        <div class="slide-content">
+                            <div class="slide-text">
+                                <h2>周末遛娃不费妈</h2>
+                                <p>精选周边亲子好去处，让带娃变得轻松有趣</p>
+                                <a href="#family" class="btn-primary">立即探索</a>
+                            </div>
+                            <div class="slide-image">
+                                <img src="https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&h=400&fit=crop" alt="亲子游玩">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="slide-content">
+                            <div class="slide-text">
+                                <h2>年轻人必冲的宝藏地</h2>
+                                <p>小众打卡、网红美食，发现你身边的新大陆</p>
+                                <a href="#category" class="btn-primary">发现更多</a>
+                            </div>
+                            <div class="slide-image">
+                                <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop" alt="网红打卡">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="slide-content">
+                            <div class="slide-text">
+                                <h2>周末趣遛吧</h2>
+                                <p>露营、野餐、户外探险，开启你的周末新玩法</p>
+                                <a href="#popular" class="btn-primary">查看热门</a>
+                            </div>
+                            <div class="slide-image">
+                                <img src="https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600&h=400&fit=crop" alt="户外露营">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="carousel-dots" id="carouselDots"></div>
+                <button class="carousel-btn prev" id="prevBtn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="carousel-btn next" id="nextBtn">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <section class="location-section" id="locationSection">
+            <div class="container">
+                <div class="location-card">
+                    <div class="location-header">
+                        <div class="location-title">
+                            <i class="fas fa-location-dot"></i>
+                            <span>我的位置</span>
+                        </div>
+                        <button class="refresh-location-btn" id="refreshLocationBtn">
+                            <i class="fas fa-sync-alt"></i>
+                            重新定位
+                        </button>
+                    </div>
+                    <div class="location-info" id="locationInfo">
+                        <div class="location-placeholder">
+                            <i class="fas fa-crosshairs"></i>
+                            <p>点击下方按钮获取您的位置</p>
+                            <button class="get-location-btn" id="getLocationBtn">
+                                <i class="fas fa-location-crosshairs"></i>
+                                获取当前位置
+                            </button>
+                        </div>
+                    </div>
+                    <div class="location-map" id="locationMap" style="display: none;">
+                        <div id="mapContainer" class="map-container"></div>
+                    </div>
+                    <div class="location-search">
+                        <div class="manual-location">
+                            <input type="text" id="manualLocationInput" placeholder="或手动输入地址搜索...">
+                            <button id="manualLocationBtn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="tag-cloud">
+            <div class="container">
+                <div class="tags-wrapper">
+                    <span class="tag" data-type="公园"><i class="fas fa-tree"></i> 公园</span>
+                    <span class="tag" data-type="游乐场"><i class="fas fa-gamepad"></i> 游乐场</span>
+                    <span class="tag" data-type="博物馆"><i class="fas fa-landmark"></i> 博物馆</span>
+                    <span class="tag" data-type="动物园"><i class="fas fa-paw"></i> 动物园</span>
+                    <span class="tag" data-type="露营地"><i class="fas fa-campground"></i> 露营地</span>
+                    <span class="tag" data-type="咖啡馆"><i class="fas fa-mug-hot"></i> 咖啡馆</span>
+                    <span class="tag" data-type="餐厅"><i class="fas fa-utensils"></i> 餐厅</span>
+                    <span class="tag" data-type="景点"><i class="fas fa-camera"></i> 景点</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="recommend-section" id="nearby">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-location-arrow"></i>
+                        <h2>附近推荐</h2>
+                    </div>
+                    <p class="section-desc" id="nearbyDesc">定位后为您推荐周边好去处</p>
+                </div>
+                <div class="cards-grid" id="nearbyCards">
+                    <div class="empty-state" id="nearbyEmpty">
+                        <i class="fas fa-map-location-dot"></i>
+                        <p>请先获取您的位置</p>
+                        <span>我们将为您推荐周边的景点和美食</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="recommend-section family-section" id="family">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-heart"></i>
+                        <h2>亲子专属推荐</h2>
+                    </div>
+                    <p class="section-desc">省心遛娃指南，让亲子时光更有趣</p>
+                </div>
+                <div class="cards-grid" id="familyCards">
+                </div>
+            </div>
+        </section>
+
+        <section class="category-section" id="category">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-th-large"></i>
+                        <h2>分类推荐</h2>
+                    </div>
+                    <p class="section-desc">按场景分类，精准找到你的心仪去处</p>
+                </div>
+                <div class="category-tabs">
+                    <button class="category-tab active" data-type="all">
+                        <i class="fas fa-globe"></i> 全部
+                    </button>
+                    <button class="category-tab" data-type="公园">
+                        <i class="fas fa-tree"></i> 公园
+                    </button>
+                    <button class="category-tab" data-type="游乐场">
+                        <i class="fas fa-gamepad"></i> 游乐场
+                    </button>
+                    <button class="category-tab" data-type="博物馆">
+                        <i class="fas fa-landmark"></i> 博物馆
+                    </button>
+                    <button class="category-tab" data-type="动物园">
+                        <i class="fas fa-paw"></i> 动物园
+                    </button>
+                    <button class="category-tab" data-type="露营地">
+                        <i class="fas fa-campground"></i> 露营地
+                    </button>
+                    <button class="category-tab" data-type="咖啡馆">
+                        <i class="fas fa-mug-hot"></i> 咖啡馆
+                    </button>
+                    <button class="category-tab" data-type="餐厅">
+                        <i class="fas fa-utensils"></i> 餐厅
+                    </button>
+                </div>
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label>距离：</label>
+                        <select id="distanceFilter">
+                            <option value="all">不限</option>
+                            <option value="1">1km内</option>
+                            <option value="3">3km内</option>
+                            <option value="5">5km内</option>
+                            <option value="10">10km内</option>
+                            <option value="20">20km内</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>排序：</label>
+                        <select id="sortFilter">
+                            <option value="distance">距离优先</option>
+                            <option value="rating">评分优先</option>
+                            <option value="popularity">热度优先</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="cards-grid" id="categoryCards">
+                </div>
+            </div>
+        </section>
+
+        <section class="family-zone" id="familyZone">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-child"></i>
+                        <h2>亲子专区</h2>
+                    </div>
+                    <p class="section-desc">专为带娃家庭打造的贴心推荐</p>
+                </div>
+                <div class="family-features">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-child"></i>
+                        </div>
+                        <h3>适合年龄标注</h3>
+                        <p>每个景点标注适合年龄段，精准匹配宝贝需求</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-gamepad"></i>
+                        </div>
+                        <h3>儿童设施</h3>
+                        <p>详细标注游乐设施，让选择更安心</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-car"></i>
+                        </div>
+                        <h3>停车方便度</h3>
+                        <p>停车信息一目了然，出行更省心</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <h3>游玩攻略</h3>
+                        <p>时长建议、必带物品、避坑提醒全都有</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="popular-section" id="popular">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-star"></i>
+                        <h2>热门打卡</h2>
+                    </div>
+                    <p class="section-desc">本周最受欢迎的好去处</p>
+                </div>
+                <div class="cards-grid" id="popularCards">
+                </div>
+            </div>
+        </section>
+
+        <section class="favorites-section" id="favorites">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-bookmark"></i>
+                        <h2>我的收藏</h2>
+                    </div>
+                    <p class="section-desc">收藏心仪景点，随时查看</p>
+                </div>
+                <div class="favorites-empty" id="favoritesEmpty">
+                    <i class="fas fa-heart-broken"></i>
+                    <p>还没有收藏任何景点</p>
+                    <span>快去探索感兴趣的地方吧~</span>
+                </div>
+                <div class="cards-grid" id="favoritesCards" style="display: none;">
+                </div>
+            </div>
+        </section>
+
+        <section class="about-section" id="about">
+            <div class="container">
+                <div class="about-content">
+                    <div class="about-text">
+                        <h2>关于遛趣星球</h2>
+                        <p>遛趣星球是一个专注于本地周边游玩推荐的平台，我们致力于为年轻人和带娃家庭发现身边的好去处。无论是周末遛娃、网红打卡，还是户外露营、美食探店，这里都有最适合你的推荐。</p>
+                        <div class="about-stats">
+                            <div class="stat-item">
+                                <span class="stat-number">500+</span>
+                                <span class="stat-label">精选景点</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number">10万+</span>
+                                <span class="stat-label">用户好评</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number">50+</span>
+                                <span class="stat-label">城市覆盖</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="about-contact">
+                        <h3>联系我们</h3>
+                        <div class="contact-item">
+                            <i class="fas fa-envelope"></i>
+                            <span>hello@liuquxingqiu.com</span>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fab fa-weixin"></i>
+                            <span>遛趣星球官方公众号</span>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fab fa-weibo"></i>
+                            <span>@遛趣星球</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <i class="fas fa-globe-americas"></i>
+                        <span>遛趣星球</span>
+                    </a>
+                    <p>发现周边好玩的地方</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>快速导航</h4>
+                        <a href="#home">首页</a>
+                        <a href="#category">分类推荐</a>
+                        <a href="#family">亲子专区</a>
+                        <a href="#popular">热门打卡</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>热门分类</h4>
+                        <a href="#">公园</a>
+                        <a href="#">游乐场</a>
+                        <a href="#">博物馆</a>
+                        <a href="#">美食</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>帮助中心</h4>
+                        <a href="#">使用指南</a>
+                        <a href="#">意见反馈</a>
+                        <a href="#">商务合作</a>
+                        <a href="#">关于我们</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 遛趣星球 All Rights Reserved.</p>
+                <p class="disclaimer">免责声明：本网站提供的景点信息仅供参考，请以实际情况为准。外出游玩请注意安全。</p>
+            </div>
+        </div>
+    </footer>
+
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-body" id="modalBody">
+            </div>
+        </div>
+    </div>
+
+    <button class="back-to-top" id="backToTop">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <script src="https://webapi.amap.com/maps?v=2.0&key=ca68b8dda260b65a74db213b45f95e23&plugin=AMap.Geolocation,AMap.PlaceSearch,AMap.AutoComplete,AMap.Marker,AMap.InfoWindow"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
