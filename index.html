@@ -136,6 +136,44 @@
                             </button>
                         </div>
                     </div>
+                    <div class="radius-setting">
+                        <div class="radius-header">
+                            <i class="fas fa-bullseye"></i>
+                            <span>搜索范围</span>
+                        </div>
+                        <div class="radius-options">
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="1000" data-text="1km">
+                                <span class="radius-label">1km</span>
+                            </label>
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="3000" data-text="3km">
+                                <span class="radius-label">3km</span>
+                            </label>
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="5000" data-text="5km" checked>
+                                <span class="radius-label">5km</span>
+                            </label>
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="10000" data-text="10km">
+                                <span class="radius-label">10km</span>
+                            </label>
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="20000" data-text="20km">
+                                <span class="radius-label">20km</span>
+                            </label>
+                            <label class="radius-option">
+                                <input type="radio" name="searchRadius" value="50000" data-text="50km">
+                                <span class="radius-label">50km</span>
+                            </label>
+                        </div>
+                        <div class="custom-radius">
+                            <span>自定义：</span>
+                            <input type="number" id="customRadius" min="500" max="100000" step="500" placeholder="输入米数">
+                            <span>米</span>
+                            <button id="applyCustomRadius" class="apply-radius-btn">应用</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

@@ -1892,3 +1892,145 @@ body {
         width: 100%;
     }
 }
+
+.radius-setting {
+    margin-top: 20px;
+    padding: 20px;
+    background: white;
+    border-radius: var(--radius-lg);
+}
+
+.radius-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.radius-header i {
+    color: var(--accent-coral);
+}
+
+.radius-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.radius-option {
+    cursor: pointer;
+}
+
+.radius-option input {
+    display: none;
+}
+
+.radius-label {
+    display: inline-block;
+    padding: 8px 16px;
+    background: var(--bg-light);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+    border: 2px solid transparent;
+}
+
+.radius-option input:checked + .radius-label {
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-mint));
+    color: white;
+    border-color: transparent;
+}
+
+.radius-option:hover .radius-label {
+    border-color: var(--primary-blue);
+}
+
+.radius-option input:checked:hover + .radius-label {
+    border-color: transparent;
+}
+
+.custom-radius {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.custom-radius span {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.custom-radius input {
+    width: 120px;
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: var(--font-family);
+    transition: all var(--transition-fast);
+}
+
+.custom-radius input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.apply-radius-btn {
+    padding: 8px 16px;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-family);
+}
+
+.apply-radius-btn:hover {
+    background: var(--primary-mint);
+}
+
+.current-radius {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--primary-yellow);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-left: auto;
+}
+
+.current-radius i {
+    color: var(--accent-coral);
+}
+
+@media (max-width: 768px) {
+    .radius-options {
+        gap: 8px;
+    }
+    
+    .radius-label {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+    
+    .custom-radius {
+        flex-wrap: wrap;
+    }
+    
+    .custom-radius input {
+        width: 100px;
+    }
+}

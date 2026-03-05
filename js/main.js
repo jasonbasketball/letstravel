@@ -184,6 +184,59 @@ function initLocation() {
             }
         }
     });
+
+    initRadiusSetting();
+}
+
+function initRadiusSetting() {
+    const radiusOptions = document.querySelectorAll('input[name="searchRadius"]');
+    const customRadiusInput = document.getElementById('customRadius');
+    const applyCustomRadiusBtn = document.getElementById('applyCustomRadius');
+
+    radiusOptions.forEach(option => {
+        option.addEventListener('change', (e) => {
+            currentFilters.distance = parseInt(e.target.value);
+            updateRadiusDisplay();
+            if (currentLocation) {
+                searchNearbyPlaces(currentLocation.lat, currentLocation.lng);
+            }
+        });
+    });
+
+    applyCustomRadiusBtn.addEventListener('click', () => {
+        const customValue = parseInt(customRadiusInput.value);
+        if (customValue && customValue >= 500 && customValue <= 100000) {
+            currentFilters.distance = customValue;
+            radiusOptions.forEach(opt => opt.checked = false);
+            updateRadiusDisplay();
+            if (currentLocation) {
+                searchNearbyPlaces(currentLocation.lat, currentLocation.lng);
+            }
+        } else {
+            alert('请输入500-100000之间的数值');
+        }
+    });
+
+    customRadiusInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            applyCustomRadiusBtn.click();
+        }
+    });
+}
+
+function updateRadiusDisplay() {
+    const radiusText = currentFilters.distance >= 1000 
+        ? (currentFilters.distance / 1000) + 'km' 
+        : currentFilters.distance + 'm';
+    
+    const nearbyDesc = document.getElementById('nearbyDesc');
+    if (nearbyDesc) {
+        nearbyDesc.textContent = `搜索范围: ${radiusText}`;
+    }
+}
+
+function getSearchRadius() {
+    return currentFilters.distance === 'all' ? 50000 : currentFilters.distance;
 }
 
 function getCurrentLocation() {
@@ -336,9 +389,9 @@ function searchNearbyPlaces(lat, lng, type = '') {
     `;
 
     const keywords = type || '景点|公园|游乐场|博物馆|动物园|露营地|咖啡馆|餐厅';
-    const types = ['050100', '050200', '050300', '110100', '110200', '060100', '060200', '060300'];
+    const radius = getSearchRadius();
     
-    fetch(`https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&keywords=${encodeURIComponent(keywords)}&radius=10000&offset=20&extensions=all`)
+    fetch(`https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&keywords=${encodeURIComponent(keywords)}&radius=${radius}&offset=30&extensions=all`)
         .then(response => response.json())
         .then(data => {
             if (data.status === '1' && data.pois && data.pois.length > 0) {
@@ -428,6 +481,16 @@ function renderNearbyPlaces(places) {
     const sorted = [...places].sort((a, b) => a.distance - b.distance).slice(0, 6);
     
     nearbyCards.innerHTML = '';
+    if (sorted.length === 0) {
+        nearbyCards.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>附近暂无推荐景点</p>
+                <span>试试扩大搜索范围</span>
+            </div>
+        `;
+        return;
+    }
     sorted.forEach(place => {
         nearbyCards.appendChild(createPlaceCard(place));
     });
@@ -435,6 +498,7 @@ function renderNearbyPlaces(places) {
 
 function renderFamilyPlaces(places) {
     const familyCards = document.getElementById('familyCards');
+    if (!familyCards) return;
     const familyPlaces = places.filter(p => p.isFamily).slice(0, 6);
     
     familyCards.innerHTML = '';
@@ -455,11 +519,33 @@ function renderFamilyPlaces(places) {
 
 function renderPopularPlaces(places) {
     const popularCards = document.getElementById('popularCards');
+    if (!popularCards) return;
     const popular = [...places].sort((a, b) => b.rating - a.rating).slice(0, 6);
     
     popularCards.innerHTML = '';
     popular.forEach(place => {
         popularCards.appendChild(createPlaceCard(place));
+    });
+}
+
+function renderCategoryCards(places) {
+    const categoryCards = document.getElementById('categoryCards');
+    if (!categoryCards) return;
+    
+    categoryCards.innerHTML = '';
+    if (places.length === 0) {
+        categoryCards.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>没有找到符合条件的景点</p>
+                <span>试试其他筛选条件吧~</span>
+            </div>
+        `;
+        return;
+    }
+
+    places.forEach(place => {
+        categoryCards.appendChild(createPlaceCard(place));
     });
 }
 
