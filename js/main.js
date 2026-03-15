@@ -186,6 +186,9 @@ function initLocation() {
     });
 
     initRadiusSetting();
+
+    // 默认尝试静默获取一次位置，避免用户面对空状态
+    getCurrentLocation(); // 取消注释，打开立刻弹出定位请求
 }
 
 function initRadiusSetting() {
@@ -340,9 +343,42 @@ function initMap(lat, lng) {
 
         marker = new AMap.Marker({
             position: [lng, lat],
-            title: '我的位置'
+            title: '我的位置',
+            icon: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png'
         });
         marker.setMap(map);
+    }
+}
+
+let poiMarkers = [];
+
+function updateMapMarkers(places) {
+    if (!map || !window.AMap) return;
+    
+    // 清除旧的POI和标点
+    poiMarkers.forEach(m => map.remove(m));
+    poiMarkers = [];
+    
+    places.forEach(place => {
+        const poiMarker = new AMap.Marker({
+            position: [place.lng, place.lat],
+            title: place.name
+        });
+        
+        poiMarker.on('click', () => {
+            openDetailModal(place);
+        });
+        
+        poiMarker.setMap(map);
+        poiMarkers.push(poiMarker);
+        
+        // 保存marker的引用以供hover联动使用
+        place.marker = poiMarker;
+    });
+    
+    // 如果有结果，调整地图视野适应所有标点
+    if (poiMarkers.length > 0 && marker) {
+        map.setFitView([marker, ...poiMarkers]);
     }
 }
 
@@ -401,6 +437,7 @@ function searchNearbyPlaces(lat, lng, type = '') {
                 renderFamilyPlaces(places);
                 renderCategoryCards(places);
                 renderPopularPlaces(places);
+                updateMapMarkers(places);
             } else {
                 nearbyCards.innerHTML = `
                     <div class="empty-state">
@@ -439,6 +476,16 @@ function processPOIData(poi, userLat, userLng) {
     else if (typeDesc.includes('咖啡') || typeDesc.includes('茶馆')) type = '咖啡馆';
     else if (typeDesc.includes('餐厅') || typeDesc.includes('美食')) type = '餐厅';
 
+    const tipsPool = [
+        "建议游玩时长：2-3小时。适合周末放松。",
+        "这里环境很棒，记得带上相机多拍几张照片哦！",
+        "周边配套齐全，吃喝玩乐一条龙，非常便利。",
+        "周末人可能比较多，建议错峰出行，体验更佳。",
+        "不管是情侣约会还是家庭出游，这里都是个不错的选择。",
+        "可以带上一点防蚊液和防晒霜，以备不时之需。",
+        "这里是个隐藏的宝藏打卡地，出片率极高！"
+    ];
+
     return {
         id: poi.id,
         name: poi.name,
@@ -453,8 +500,9 @@ function processPOIData(poi, userLat, userLng) {
         rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : (3.5 + Math.random() * 1.5).toFixed(1),
         cost: poi.biz_ext?.cost || '',
         photos: poi.photos?.map(p => p.url) || [],
-        image: poi.photos?.[0]?.url || `https://source.unsplash.com/600x400/?${type},nature&sig=${poi.id}`,
-        isFamily: familyTypes.includes(type)
+        image: poi.photos?.[0]?.url || `https://picsum.photos/600/400?random=${encodeURIComponent(poi.id)}`,
+        isFamily: familyTypes.includes(type),
+        tip: tipsPool[Math.floor(Math.random() * tipsPool.length)]
     };
 }
 
@@ -555,7 +603,7 @@ function createPlaceCard(place) {
     card.className = 'place-card';
     card.innerHTML = `
         <div class="card-image">
-            <img src="${place.image}" alt="${place.name}" loading="lazy" onerror="this.src='https://source.unsplash.com/600x400/?nature,landscape'">
+            <img src="${place.image}" alt="${place.name}" loading="lazy" onerror="this.src='https://picsum.photos/600/400?random=${encodeURIComponent(place.id)}'">
             <div class="card-tags">
                 <span class="card-tag">${place.type}</span>
                 ${place.distance < 1 ? '<span class="card-tag free">步行可达</span>' : ''}
@@ -583,6 +631,18 @@ function createPlaceCard(place) {
     card.addEventListener('click', (e) => {
         if (!e.target.closest('.card-favorite')) {
             openDetailModal(place);
+        }
+    });
+
+    card.addEventListener('mouseenter', () => {
+        if (place.marker) {
+            place.marker.setAnimation('AMAP_ANIMATION_BOUNCE');
+        }
+    });
+
+    card.addEventListener('mouseleave', () => {
+        if (place.marker) {
+            place.marker.setAnimation('AMAP_ANIMATION_NONE');
         }
     });
 
@@ -808,7 +868,13 @@ function openDetailModal(place) {
 
             <div class="detail-section">
                 <h3><i class="fas fa-info-circle"></i> 景点介绍</h3>
-                <p>${place.typeDesc || '这是一个' + place.type + '，位于' + place.address + '，距离您约' + place.distanceText + '。'}</p>
+                <p>
+                    ${place.typeDesc || '这是一个' + place.type + '，位于' + place.address + '，距离您约' + place.distanceText + '。'}
+                </p>
+                <div style="margin-top: 15px; padding: 15px; background: rgba(52, 152, 219, 0.05); border-left: 4px solid var(--primary-blue); border-radius: 4px;">
+                    <strong>💡 游玩小贴士：</strong>
+                    <p style="margin-top: 5px; color: var(--text-secondary);">${place.tip || '周末人可能比较多，建议提前规划好行程，体验更佳哦！'}</p>
+                </div>
             </div>
 
             <div class="detail-actions">
