@@ -531,7 +531,8 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
 function processPOIData(poi, userLat, userLng) {
     const poiName = poi.name || '';
     const typeDesc = poi.type || '';
-    
+    const typecode = poi.typecode || '';
+
     // 强力过滤无用POI对象：停车场、洗手间、售票处、附属设施等
     const excludeKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施'];
     if (excludeKeywords.some(keyword => poiName.includes(keyword) || typeDesc.includes(keyword))) {
@@ -541,20 +542,28 @@ function processPOIData(poi, userLat, userLng) {
     const location = poi.location.split(',');
     const poiLng = parseFloat(location[0]);
     const poiLat = parseFloat(location[1]);
-    
-    const distance = calculateDistance(userLat, userLng, poiLat, poiLng);
-    
-    let type = '景点';
-    if (typeDesc.includes('公园')) type = '公园';
-    else if (typeDesc.includes('游乐') || typeDesc.includes('游乐园') || typeDesc.includes('主题公园')) type = '游乐场';
-    else if (typeDesc.includes('博物馆') || typeDesc.includes('展览馆') || typeDesc.includes('美术馆')) type = '博物馆';
-    else if (typeDesc.includes('动物园') || typeDesc.includes('植物园') || typeDesc.includes('水族馆')) type = '动物园';
-    else if (typeDesc.includes('露营') || typeDesc.includes('度假村') || typeDesc.includes('农家乐')) type = '露营地';
-    else if (typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('饮品')) type = '咖啡馆';
-    else if (typeDesc.includes('餐厅') || typeDesc.includes('美食') || typeDesc.includes('餐饮')) type = '餐厅';
 
-    const tipsPool = [
-        "建议游玩时长：2-3小时。适合周末放松。",
+    const distance = calculateDistance(userLat, userLng, poiLat, poiLng);
+
+    // 基于typecode的前缀或完整匹配进行精准分类
+    let type = '景点';
+    if (typecode.startsWith('110104') || typecode.startsWith('110100') || typeDesc.includes('动物') || typeDesc.includes('水族') || poiName.includes('动物') || poiName.includes('海洋')) {
+        type = '动物园';
+    } else if (typecode.startsWith('0803') || typeDesc.includes('游乐') || poiName.includes('游乐') || poiName.includes('主题')) {
+        type = '游乐场';
+    } else if (typecode.startsWith('1401') || typeDesc.includes('博物馆') || typeDesc.includes('科技馆') || typeDesc.includes('美术馆')) {
+        type = '博物馆';
+    } else if (typecode.startsWith('080101') || typecode.startsWith('080100') || typecode.startsWith('110105') || typeDesc.includes('公园')) {
+        type = '公园';
+    } else if (typecode.startsWith('080304') || typeDesc.includes('露营') || typeDesc.includes('度假') || typeDesc.includes('农家乐')) {
+        type = '露营地';
+    } else if (typecode.startsWith('0505') || typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('饮品')) {
+        type = '咖啡馆';
+    } else if (typecode.startsWith('0500') || typecode.startsWith('0501') || typecode.startsWith('0502') || typecode.startsWith('0503') || typecode.startsWith('0504') || typeDesc.includes('餐厅') || typeDesc.includes('餐饮') || typeDesc.includes('美食')) {
+        type = '餐厅';
+    } else if (typecode.startsWith('1102') || typecode.startsWith('1100') || typeDesc.includes('风景名胜')) {
+        type = '景点';
+    }
         "这里环境很棒，记得带上相机多拍几张照片哦！",
         "周边配套齐全，吃喝玩乐一条龙，非常便利。",
         "周末人可能比较多，建议错峰出行，体验更佳。",
