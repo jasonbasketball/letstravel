@@ -23,6 +23,17 @@ const typeMapping = {
     '景点': '景点'
 };
 
+const amapTypesMapping = {
+    '公园': '080101|080100|110105',
+    '游乐场': '080300',
+    '博物馆': '140100',
+    '动物园': '110104|110100',
+    '露营地': '080300|080304',
+    '咖啡馆': '050500',
+    '餐厅': '050000',
+    '景点': '110000|110200|110206'
+};
+
 const familyTypes = ['公园', '游乐场', '博物馆', '动物园'];
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -424,9 +435,21 @@ function searchNearbyPlaces(lat, lng, type = '') {
         </div>
     `;
 
-    let keywords = type || '';
-    // 如果没有指定具体类型，推荐热门类别：110000(风景名胜), 080100(体育休闲/游乐园/露营地等), 140100(博物馆/美术馆)
-    const types = type ? '' : '110000|080000|140000';
+    let keywords = '';
+    let types = '110000|080100|080300|140100|050000|050500'; // 默认包含核心吃喝玩乐分类
+    
+    // 如果用户传了明确的分类/标签，则精准映射到高德Types，而不是模糊的keywords
+    if (type) {
+        if (amapTypesMapping[type]) {
+            types = amapTypesMapping[type];
+            keywords = ''; 
+        } else {
+            // 如果不在预设里（如用户手动输入搜索词），则走关键词
+            keywords = type;
+            types = '';
+        }
+    }
+    
     const radius = getSearchRadius();
     
     // sortrule=weight 按综合热度/权重排序，避免因为距离排序导致全是被塞满的无名小公园
@@ -438,7 +461,11 @@ function searchNearbyPlaces(lat, lng, type = '') {
         .then(response => response.json())
         .then(data => {
             if (data.status === '1' && data.pois && data.pois.length > 0) {
-                const places = data.pois.map(poi => processPOIData(poi, lat, lng));
+                // 深度过滤没用的设施（如停车场、厕所、各类大门、出入口）
+                const places = data.pois
+                    .map(poi => processPOIData(poi, lat, lng))
+                    .filter(place => place !== null);
+                    
                 allPlaces = places;
                 renderNearbyPlaces(places);
                 renderFamilyPlaces(places);
@@ -467,6 +494,15 @@ function searchNearbyPlaces(lat, lng, type = '') {
 }
 
 function processPOIData(poi, userLat, userLng) {
+    const poiName = poi.name || '';
+    const typeDesc = poi.type || '';
+    
+    // 强力过滤无用POI对象：停车场、洗手间、售票处、附属设施等
+    const excludeKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施'];
+    if (excludeKeywords.some(keyword => poiName.includes(keyword) || typeDesc.includes(keyword))) {
+        return null; // 直接丢弃该条数据
+    }
+
     const location = poi.location.split(',');
     const poiLng = parseFloat(location[0]);
     const poiLat = parseFloat(location[1]);
@@ -474,14 +510,13 @@ function processPOIData(poi, userLat, userLng) {
     const distance = calculateDistance(userLat, userLng, poiLat, poiLng);
     
     let type = '景点';
-    const typeDesc = poi.type || '';
     if (typeDesc.includes('公园')) type = '公园';
-    else if (typeDesc.includes('游乐') || typeDesc.includes('游乐园')) type = '游乐场';
-    else if (typeDesc.includes('博物馆') || typeDesc.includes('展览馆')) type = '博物馆';
-    else if (typeDesc.includes('动物园') || typeDesc.includes('植物园')) type = '动物园';
-    else if (typeDesc.includes('露营') || typeDesc.includes('度假村')) type = '露营地';
-    else if (typeDesc.includes('咖啡') || typeDesc.includes('茶馆')) type = '咖啡馆';
-    else if (typeDesc.includes('餐厅') || typeDesc.includes('美食')) type = '餐厅';
+    else if (typeDesc.includes('游乐') || typeDesc.includes('游乐园') || typeDesc.includes('主题公园')) type = '游乐场';
+    else if (typeDesc.includes('博物馆') || typeDesc.includes('展览馆') || typeDesc.includes('美术馆')) type = '博物馆';
+    else if (typeDesc.includes('动物园') || typeDesc.includes('植物园') || typeDesc.includes('水族馆')) type = '动物园';
+    else if (typeDesc.includes('露营') || typeDesc.includes('度假村') || typeDesc.includes('农家乐')) type = '露营地';
+    else if (typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('饮品')) type = '咖啡馆';
+    else if (typeDesc.includes('餐厅') || typeDesc.includes('美食') || typeDesc.includes('餐饮')) type = '餐厅';
 
     const tipsPool = [
         "建议游玩时长：2-3小时。适合周末放松。",
