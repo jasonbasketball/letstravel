@@ -12,6 +12,7 @@ let allPlaces = [];
 let latestSearchToken = 0;
 const searchCache = new Map();
 const SEARCH_CACHE_TTL = 2 * 60 * 1000;
+const MAX_CACHE_SIZE = 30;
 
 const AMAP_KEY = '5cc98010473dc9bf7343b87635e58bab';
 
@@ -455,7 +456,7 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
         return;
     }
 
-    const categoryTypes = amapTypesMapping[searchQuery];
+    const categoryTypes = amapTypesMapping[normalizedQuery];
     const presetTypes = [
         '110000|110200',
         '080100|080300',
@@ -467,7 +468,7 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
 
     let fetchPromises = [];
 
-    if (searchQuery && !categoryTypes) {
+    if (normalizedQuery && !categoryTypes) {
         const aroundUrl = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&keywords=${encodeURIComponent(searchQuery)}`;
         const textUrl = `https://restapi.amap.com/v3/place/text?key=${AMAP_KEY}&offset=50&extensions=all&citylimit=false&location=${lng},${lat}&keywords=${encodeURIComponent(searchQuery)}`;
         fetchPromises = [
@@ -510,6 +511,7 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
                 applyFilters();
                 updateMapMarkers([]);
                 searchCache.set(cacheKey, { timestamp: Date.now(), places: [] });
+                pruneSearchCache();
                 return;
             }
 
@@ -542,13 +544,14 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
 
             allPlaces = places;
             searchCache.set(cacheKey, { timestamp: Date.now(), places });
+            pruneSearchCache();
             renderNearbyPlaces(places);
             renderFamilyPlaces(places);
             renderPopularPlaces(places);
             applyFilters();
             updateMapMarkers(places);
 
-            if (searchQuery && !amapTypesMapping[searchQuery]) {
+            if (normalizedQuery && !amapTypesMapping[normalizedQuery]) {
                 document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         })
@@ -563,6 +566,18 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
                 `;
             }
         });
+}
+
+function pruneSearchCache() {
+    if (searchCache.size <= MAX_CACHE_SIZE) return;
+
+    const orderedEntries = Array.from(searchCache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+    const removeCount = searchCache.size - MAX_CACHE_SIZE;
+    for (let i = 0; i < removeCount; i++) {
+        searchCache.delete(orderedEntries[i][0]);
+    }
 }
 
 function processPOIData(poi, userLat, userLng) {
@@ -854,26 +869,6 @@ function applyFilters() {
     }
 
     renderCategoryCards(filtered);
-}
-
-function renderCategoryCards(places) {
-    const categoryCards = document.getElementById('categoryCards');
-    categoryCards.innerHTML = '';
-    
-    if (places.length === 0) {
-        categoryCards.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-search"></i>
-                <p>没有找到符合条件的景点</p>
-                <span>试试其他筛选条件吧~</span>
-            </div>
-        `;
-        return;
-    }
-
-    places.forEach(place => {
-        categoryCards.appendChild(createPlaceCard(place));
-    });
 }
 
 function initSearch() {
