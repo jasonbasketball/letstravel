@@ -10,6 +10,9 @@ let currentFilters = {
     sort: 'distance'
 };
 let allPlaces = [];
+let filteredCategoryPlaces = [];
+let categoryVisibleCount = 12;
+const CATEGORY_PAGE_SIZE = 12;
 let latestSearchToken = 0;
 const searchCache = new Map();
 const SEARCH_CACHE_TTL = 2 * 60 * 1000;
@@ -55,6 +58,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initCategoryTabs();
     initFilters();
     initSearch();
+    initSectionMoreButtons();
+    initCategoryMoreButton();
     initBackToTop();
     initModal();
     initTags();
@@ -217,6 +222,7 @@ function initRadiusSetting() {
     radiusOptions.forEach(option => {
         option.addEventListener('change', (e) => {
             currentFilters.radius = parseInt(e.target.value);
+            syncDistanceFilterWithRadius();
             updateRadiusDisplay();
             if (currentLocation) {
                 searchNearbyPlaces(currentLocation.lat, currentLocation.lng, '', true);
@@ -229,6 +235,7 @@ function initRadiusSetting() {
         if (customValue && customValue >= 500 && customValue <= 100000) {
             currentFilters.radius = customValue;
             radiusOptions.forEach(opt => opt.checked = false);
+            syncDistanceFilterWithRadius();
             updateRadiusDisplay();
             if (currentLocation) {
                 searchNearbyPlaces(currentLocation.lat, currentLocation.lng, '', true);
@@ -254,6 +261,17 @@ function updateRadiusDisplay() {
     if (nearbyDesc) {
         nearbyDesc.textContent = `搜索范围: ${radiusText}`;
     }
+}
+
+function syncDistanceFilterWithRadius() {
+    const distanceFilter = document.getElementById('distanceFilter');
+    if (!distanceFilter) return;
+
+    const radiusKm = currentFilters.radius / 1000;
+    const exactOptions = ['1', '3', '5', '10', '20'];
+    const matched = exactOptions.find(v => parseFloat(v) === radiusKm);
+    distanceFilter.value = matched || 'all';
+    currentFilters.distanceFilterKm = distanceFilter.value;
 }
 
 function getSearchRadius() {
@@ -852,6 +870,47 @@ function renderCategoryCards(places) {
     });
 }
 
+function initSectionMoreButtons() {
+    const buttons = document.querySelectorAll('.section-more-btn');
+    buttons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetType = button.dataset.type || 'all';
+            navigateToCategory(targetType);
+        });
+    });
+}
+
+function navigateToCategory(type) {
+    document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.type === type);
+    });
+    currentType = type;
+    applyFilters();
+    document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function initCategoryMoreButton() {
+    const moreBtn = document.getElementById('categoryMoreBtn');
+    if (!moreBtn) return;
+
+    moreBtn.addEventListener('click', () => {
+        categoryVisibleCount += CATEGORY_PAGE_SIZE;
+        renderCategoryCards(filteredCategoryPlaces.slice(0, categoryVisibleCount));
+        updateCategoryMoreButton();
+    });
+}
+
+function updateCategoryMoreButton() {
+    const moreBtn = document.getElementById('categoryMoreBtn');
+    if (!moreBtn) return;
+
+    const hasMore = filteredCategoryPlaces.length > categoryVisibleCount;
+    moreBtn.style.display = hasMore ? 'inline-flex' : 'none';
+    if (hasMore) {
+        moreBtn.textContent = `查看更多 (${categoryVisibleCount}/${filteredCategoryPlaces.length})`;
+    }
+}
+
 function createPlaceCard(place) {
     const isFavorite = favorites.includes(place.id);
     const card = document.createElement('div');
@@ -953,7 +1012,15 @@ function initFilters() {
 
     distanceFilter.addEventListener('change', (e) => {
         currentFilters.distanceFilterKm = e.target.value;
-        applyFilters();
+
+        if (currentLocation) {
+            const selected = e.target.value;
+            currentFilters.radius = selected === 'all' ? 50000 : parseFloat(selected) * 1000;
+            updateRadiusDisplay();
+            searchNearbyPlaces(currentLocation.lat, currentLocation.lng, '', true);
+        } else {
+            applyFilters();
+        }
     });
 
     sortFilter.addEventListener('change', (e) => {
@@ -982,7 +1049,10 @@ function applyFilters() {
         filtered.sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance);
     }
 
-    renderCategoryCards(filtered);
+    filteredCategoryPlaces = filtered;
+    categoryVisibleCount = CATEGORY_PAGE_SIZE;
+    renderCategoryCards(filteredCategoryPlaces.slice(0, categoryVisibleCount));
+    updateCategoryMoreButton();
 }
 
 function initSearch() {

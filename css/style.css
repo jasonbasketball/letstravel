@@ -443,6 +443,28 @@ body {
     font-size: 1.1rem;
 }
 
+.section-more-btn {
+    margin-top: 14px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-mint));
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-family);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.section-more-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
 .recommend-section {
     padding: 60px 0;
 }
