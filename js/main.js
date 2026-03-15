@@ -424,10 +424,17 @@ function searchNearbyPlaces(lat, lng, type = '') {
         </div>
     `;
 
-    const keywords = type || '景点|公园|游乐场|博物馆|动物园|露营地|咖啡馆|餐厅';
+    let keywords = type || '';
+    // 如果没有指定具体类型，推荐热门类别：110000(风景名胜), 080100(体育休闲/游乐园/露营地等), 140100(博物馆/美术馆)
+    const types = type ? '' : '110000|080000|140000';
     const radius = getSearchRadius();
     
-    fetch(`https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&keywords=${encodeURIComponent(keywords)}&radius=${radius}&offset=30&extensions=all`)
+    // sortrule=weight 按综合热度/权重排序，避免因为距离排序导致全是被塞满的无名小公园
+    let url = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight`;
+    if (keywords) url += `&keywords=${encodeURIComponent(keywords)}`;
+    if (types) url += `&types=${types}`;
+    
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             if (data.status === '1' && data.pois && data.pois.length > 0) {
