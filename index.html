@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>遛趣星球 - 发现周边好玩的地方</title>
-    <link rel="stylesheet" href="css/style.css?v=1.1.4">
+    <link rel="stylesheet" href="css/style.css?v=1.1.5">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
@@ -209,6 +209,9 @@
                         <span>我们将为您推荐周边的景点和美食</span>
                     </div>
                 </div>
+                <div class="section-load-more-wrap">
+                    <button class="section-load-more-btn" id="nearbyLoadMoreBtn" data-section="nearby" style="display:none;">加载更多</button>
+                </div>
             </div>
         </section>
 
@@ -223,6 +226,9 @@
                     <button class="section-more-btn" data-type="动物园">查看更多</button>
                 </div>
                 <div class="cards-grid" id="familyCards">
+                </div>
+                <div class="section-load-more-wrap">
+                    <button class="section-load-more-btn" id="familyLoadMoreBtn" data-section="family" style="display:none;">加载更多</button>
                 </div>
             </div>
         </section>
@@ -342,6 +348,9 @@
                 </div>
                 <div class="cards-grid" id="foodCards">
                 </div>
+                <div class="section-load-more-wrap">
+                    <button class="section-load-more-btn" id="foodLoadMoreBtn" data-section="food" style="display:none;">加载更多</button>
+                </div>
             </div>
         </section>
 
@@ -356,6 +365,9 @@
                     <button class="section-more-btn" data-type="景点">查看更多</button>
                 </div>
                 <div class="cards-grid" id="popularCards">
+                </div>
+                <div class="section-load-more-wrap">
+                    <button class="section-load-more-btn" id="popularLoadMoreBtn" data-section="popular" style="display:none;">加载更多</button>
                 </div>
             </div>
         </section>
@@ -491,6 +503,6 @@
         })();
     </script>
     <script src="https://webapi.amap.com/maps?v=2.0&key=ca68b8dda260b65a74db213b45f95e23&plugin=AMap.Geolocation,AMap.PlaceSearch,AMap.AutoComplete,AMap.Marker,AMap.InfoWindow"></script>
-    <script src="js/main.js?v=1.1.4"></script>
+    <script src="js/main.js?v=1.1.5"></script>
 </body>
 </html>

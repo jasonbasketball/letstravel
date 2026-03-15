@@ -13,6 +13,13 @@ let allPlaces = [];
 let filteredCategoryPlaces = [];
 let categoryVisibleCount = 12;
 const CATEGORY_PAGE_SIZE = 12;
+const SECTION_PAGE_SIZE = 6;
+let sectionVisibleCounts = {
+    nearby: 6,
+    family: 6,
+    food: 6,
+    popular: 6
+};
 let latestSearchToken = 0;
 const searchCache = new Map();
 const SEARCH_CACHE_TTL = 2 * 60 * 1000;
@@ -60,6 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initSearch();
     initSectionMoreButtons();
     initCategoryMoreButton();
+    initSectionLoadMoreButtons();
     initBackToTop();
     initModal();
     initTags();
@@ -469,10 +477,8 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
     const cacheHit = searchCache.get(cacheKey);
     if (!forceRefresh && cacheHit && (Date.now() - cacheHit.timestamp) < SEARCH_CACHE_TTL) {
         allPlaces = cacheHit.places;
-        renderNearbyPlaces(allPlaces);
-        renderFamilyPlaces(allPlaces);
-        renderPopularPlaces(allPlaces);
-        renderFoodPlaces(allPlaces);
+        resetSectionVisibleCounts();
+        rerenderSections();
         applyFilters();
         updateMapMarkers(allPlaces);
         return;
@@ -526,10 +532,8 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
 
             if (uniquePois.length === 0) {
                 allPlaces = [];
-                renderNearbyPlaces([]);
-                renderFamilyPlaces([]);
-                renderPopularPlaces([]);
-                renderFoodPlaces([]);
+                resetSectionVisibleCounts();
+                rerenderSections();
                 applyFilters();
                 updateMapMarkers([]);
                 searchCache.set(cacheKey, { timestamp: Date.now(), places: [] });
@@ -566,12 +570,10 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
             });
 
             allPlaces = places;
+            resetSectionVisibleCounts();
             searchCache.set(cacheKey, { timestamp: Date.now(), places });
             pruneSearchCache();
-            renderNearbyPlaces(places);
-            renderFamilyPlaces(places);
-            renderPopularPlaces(places);
-            renderFoodPlaces(places);
+            rerenderSections();
             applyFilters();
             updateMapMarkers(places);
 
@@ -768,10 +770,10 @@ function formatDistance(km) {
 
 function renderNearbyPlaces(places) {
     const nearbyCards = document.getElementById('nearbyCards');
-    const sorted = [...places]
+    const source = [...places]
         .filter(p => p.type !== '美食')
-        .sort((a, b) => b.rating - a.rating || a.distance - b.distance)
-        .slice(0, 6);
+        .sort((a, b) => b.rating - a.rating || a.distance - b.distance);
+    const sorted = source.slice(0, sectionVisibleCounts.nearby);
     
     nearbyCards.innerHTML = '';
     if (sorted.length === 0) {
@@ -787,12 +789,15 @@ function renderNearbyPlaces(places) {
     sorted.forEach(place => {
         nearbyCards.appendChild(createPlaceCard(place));
     });
+
+    updateSectionLoadMoreButton('nearby', source.length);
 }
 
 function renderFamilyPlaces(places) {
     const familyCards = document.getElementById('familyCards');
     if (!familyCards) return;
-    const familyPlaces = places.filter(p => p.isFamily).slice(0, 6);
+    const familySource = places.filter(p => p.isFamily);
+    const familyPlaces = familySource.slice(0, sectionVisibleCounts.family);
     
     familyCards.innerHTML = '';
     if (familyPlaces.length === 0) {
@@ -808,30 +813,34 @@ function renderFamilyPlaces(places) {
     familyPlaces.forEach(place => {
         familyCards.appendChild(createPlaceCard(place));
     });
+
+    updateSectionLoadMoreButton('family', familySource.length);
 }
 
 function renderPopularPlaces(places) {
     const popularCards = document.getElementById('popularCards');
     if (!popularCards) return;
-    const popular = [...places]
+    const popularSource = [...places]
         .filter(p => p.type !== '美食')
-        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance)
-        .slice(0, 6);
+        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance);
+    const popular = popularSource.slice(0, sectionVisibleCounts.popular);
     
     popularCards.innerHTML = '';
     popular.forEach(place => {
         popularCards.appendChild(createPlaceCard(place));
     });
+
+    updateSectionLoadMoreButton('popular', popularSource.length);
 }
 
 function renderFoodPlaces(places) {
     const foodCards = document.getElementById('foodCards');
     if (!foodCards) return;
 
-    const foods = [...places]
+    const foodSource = [...places]
         .filter(p => p.type === '美食')
-        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance)
-        .slice(0, 6);
+        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance);
+    const foods = foodSource.slice(0, sectionVisibleCounts.food);
 
     foodCards.innerHTML = '';
     if (foods.length === 0) {
@@ -847,6 +856,8 @@ function renderFoodPlaces(places) {
     foods.forEach(place => {
         foodCards.appendChild(createPlaceCard(place));
     });
+
+    updateSectionLoadMoreButton('food', foodSource.length);
 }
 
 function renderCategoryCards(places) {
@@ -878,6 +889,47 @@ function initSectionMoreButtons() {
             navigateToCategory(targetType);
         });
     });
+}
+
+function initSectionLoadMoreButtons() {
+    const buttons = document.querySelectorAll('.section-load-more-btn');
+    buttons.forEach(button => {
+        button.addEventListener('click', () => {
+            const section = button.dataset.section;
+            if (!section || !sectionVisibleCounts[section]) return;
+
+            sectionVisibleCounts[section] += SECTION_PAGE_SIZE;
+            rerenderSections();
+        });
+    });
+}
+
+function updateSectionLoadMoreButton(section, totalCount) {
+    const button = document.getElementById(`${section}LoadMoreBtn`);
+    if (!button) return;
+
+    const visible = sectionVisibleCounts[section] || SECTION_PAGE_SIZE;
+    const hasMore = totalCount > visible;
+    button.style.display = hasMore ? 'inline-flex' : 'none';
+    if (hasMore) {
+        button.textContent = `加载更多 (${Math.min(visible, totalCount)}/${totalCount})`;
+    }
+}
+
+function resetSectionVisibleCounts() {
+    sectionVisibleCounts = {
+        nearby: 6,
+        family: 6,
+        food: 6,
+        popular: 6
+    };
+}
+
+function rerenderSections() {
+    renderNearbyPlaces(allPlaces);
+    renderFamilyPlaces(allPlaces);
+    renderPopularPlaces(allPlaces);
+    renderFoodPlaces(allPlaces);
 }
 
 function navigateToCategory(type) {
@@ -988,8 +1040,7 @@ function toggleFavorite(id, btn) {
     }
     localStorage.setItem('favorites', JSON.stringify(favorites));
     updateFavoritesSection();
-    renderPopularPlaces(allPlaces);
-    renderFoodPlaces(allPlaces);
+    rerenderSections();
     applyFilters();
 }
 
