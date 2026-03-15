@@ -675,6 +675,15 @@ function processPOIData(poi, userLat, userLng) {
     const finalRating = Number.isFinite(ratingValue) ? ratingValue : parseFloat((3.5 + Math.random() * 1.5).toFixed(1));
     const distanceText = formatDistance(distance);
     const finalAddress = poi.address || fallbackAddress || '暂无地址信息';
+    const durationMeta = getDurationMeta(type);
+    const budgetLevel = getBudgetLevel(poi.biz_ext?.cost || '', type);
+    const weatherTag = getWeatherTag(type);
+    const audienceTags = getAudienceTags(type);
+    const bestTime = getBestTime(type);
+    const crowdLevel = getCrowdLevel(finalRating, type);
+    const parkingTip = getParkingTip(type, distance);
+    const themeTags = getThemeTags(type, budgetLevel, weatherTag, audienceTags);
+    const highlights = getPlaceHighlights(type, weatherTag, bestTime);
     const intro = buildDetailedIntro({
         name: poiName,
         type,
@@ -711,6 +720,16 @@ function processPOIData(poi, userLat, userLng) {
         isFamily: familyTypes.includes(type),
         intro,
         popularityBase,
+        durationLabel: durationMeta.label,
+        durationBucket: durationMeta.bucket,
+        budgetLevel,
+        weatherTag,
+        audienceTags,
+        bestTime,
+        crowdLevel,
+        parkingTip,
+        themeTags,
+        highlights,
         tip: tipsPool[Math.floor(Math.random() * tipsPool.length)]
     };
 }
@@ -731,6 +750,97 @@ function getPopularityScore(place) {
     return Math.max(0, Math.min(100, (place.popularityBase || 0) + favoriteBoost));
 }
 
+function getDurationMeta(type) {
+    const map = {
+        '公园': { label: '1-3小时', bucket: 'halfday' },
+        '游乐场': { label: '4-6小时', bucket: 'fullday' },
+        '博物馆': { label: '2-3小时', bucket: 'halfday' },
+        '动物园': { label: '4-6小时', bucket: 'fullday' },
+        '露营地': { label: '半天到1天', bucket: 'fullday' },
+        '景点': { label: '2-4小时', bucket: 'halfday' },
+        '美食': { label: '1-2小时', bucket: 'short' }
+    };
+    return map[type] || { label: '2-3小时', bucket: 'halfday' };
+}
+
+function getBudgetLevel(cost, type) {
+    const parsedCost = parseFloat(cost);
+    if (Number.isFinite(parsedCost)) {
+        if (parsedCost <= 30) return 'low';
+        if (parsedCost <= 100) return 'medium';
+        return 'high';
+    }
+
+    if (['公园', '景点'].includes(type)) return 'free';
+    if (type === '美食') return 'medium';
+    return 'low';
+}
+
+function getWeatherTag(type) {
+    if (['博物馆', '美食'].includes(type)) return 'indoor';
+    if (['公园', '露营地', '动物园'].includes(type)) return 'outdoor';
+    return 'mixed';
+}
+
+function getAudienceTags(type) {
+    const tags = ['friends'];
+    if (['公园', '游乐场', '博物馆', '动物园'].includes(type)) tags.push('family');
+    if (['景点', '公园', '美食', '博物馆'].includes(type)) tags.push('couple');
+    if (['景点', '博物馆', '公园', '美食'].includes(type)) tags.push('solo');
+    return [...new Set(tags)];
+}
+
+function getBestTime(type) {
+    const map = {
+        '公园': '上午或傍晚',
+        '游乐场': '上午开园后',
+        '博物馆': '工作日下午',
+        '动物园': '上午 9 点-11 点',
+        '露营地': '晴天午后',
+        '景点': '日落前后',
+        '美食': '午餐后或晚餐前'
+    };
+    return map[type] || '错峰前往';
+}
+
+function getCrowdLevel(rating, type) {
+    if (rating >= 4.6 || ['游乐场', '动物园'].includes(type)) return '较高';
+    if (rating >= 4.1) return '中等';
+    return '相对轻松';
+}
+
+function getParkingTip(type, distance) {
+    if (distance < 1) return '步行或打车更省心';
+    if (['露营地', '公园', '动物园'].includes(type)) return '建议自驾，优先看停车场指引';
+    if (type === '博物馆') return '建议优先公共交通，周边停车位有限';
+    return '可根据实时路况选择自驾或公共交通';
+}
+
+function getThemeTags(type, budgetLevel, weatherTag, audienceTags) {
+    const tags = [];
+    if (budgetLevel === 'free') tags.push('免费优先');
+    if (weatherTag === 'indoor') tags.push('雨天友好');
+    if (weatherTag === 'outdoor') tags.push('晴天更佳');
+    if (audienceTags.includes('family')) tags.push('亲子可玩');
+    if (audienceTags.includes('couple')) tags.push('约会友好');
+    if (type === '景点') tags.push('拍照出片');
+    if (type === '美食') tags.push('适合聚餐');
+    return tags.slice(0, 3);
+}
+
+function getPlaceHighlights(type, weatherTag, bestTime) {
+    const base = {
+        '公园': ['适合散步放松', '开阔空间更轻松', `推荐${bestTime}前往`],
+        '游乐场': ['互动体验感强', '适合周末半天到一天', `推荐${bestTime}出发`],
+        '博物馆': ['内容集中易逛', '适合学习与拍照', weatherTag === 'indoor' ? '雨天也能安心去' : '四季都适合'],
+        '动物园': ['遛娃成功率高', '适合周末整天安排', `推荐${bestTime}前往`],
+        '露营地': ['适合放空和社交', '适合带装备慢慢玩', '建议关注天气变化'],
+        '景点': ['适合打卡拍照', '内容丰富不单调', `推荐${bestTime}体验更佳`],
+        '美食': ['适合顺路补给', '可与景点串联', '适合朋友或情侣一起去']
+    };
+    return base[type] || ['适合顺路安排', '体验轻松', `推荐${bestTime}前往`];
+}
+
 function buildDetailedIntro({ name, type, typeDesc, address, distanceText, rating, cost }) {
     const typeDurationMap = {
         '公园': '1-3小时',
@@ -748,6 +858,90 @@ function buildDetailedIntro({ name, type, typeDesc, address, distanceText, ratin
     const descText = typeDesc && typeDesc !== type ? `类型为${typeDesc}。` : `属于${type}场景。`;
 
     return `${name}${descText}位于${address}，距离您约${distanceText}。当前口碑${ratingText}，${costText}建议安排${duration}游玩，优先选择非高峰时段体验更佳。`;
+}
+
+function buildTopicCollections(places) {
+    return [
+        {
+            id: 'family',
+            title: '遛娃榜单',
+            desc: '优先看亲子友好、步行压力小、停留时长充足的地点。',
+            places: places.filter(p => p.audienceTags?.includes('family') && p.type !== '美食').slice(0, 5),
+            action: () => applyScenarioFilters({ audience: 'family' })
+        },
+        {
+            id: 'rainy',
+            title: '雨天备选',
+            desc: '下雨也能出门，不用临时改行程。',
+            places: places.filter(p => p.weatherTag === 'indoor').slice(0, 5),
+            action: () => applyScenarioFilters({ weather: 'indoor' })
+        },
+        {
+            id: 'free',
+            title: '免费优先',
+            desc: '预算友好，适合说走就走的轻出行。',
+            places: places.filter(p => p.budgetLevel === 'free' && p.type !== '美食').slice(0, 5),
+            action: () => applyScenarioFilters({ budget: 'free' })
+        },
+        {
+            id: 'date',
+            title: '情侣约会',
+            desc: '优先筛选适合慢逛、拍照和吃饭串联的地点。',
+            places: places.filter(p => p.audienceTags?.includes('couple')).slice(0, 5),
+            action: () => applyScenarioFilters({ audience: 'couple' })
+        },
+        {
+            id: 'food',
+            title: '人气美食',
+            desc: '高口碑餐饮，适合当作路线中的补给站。',
+            places: places.filter(p => p.type === '美食').slice(0, 5),
+            action: () => document.getElementById('food').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        },
+        {
+            id: 'photo',
+            title: '拍照出片',
+            desc: '优先展示景观感和画面感更好的地点。',
+            places: places.filter(p => p.themeTags?.includes('拍照出片')).slice(0, 5),
+            action: () => applyScenarioFilters({ audience: 'couple', sort: 'popularity' })
+        }
+    ].filter(topic => topic.places.length > 0);
+}
+
+function buildRoutePlans(places) {
+    const attractions = places.filter(p => p.type !== '美食');
+    const foods = places.filter(p => p.type === '美食');
+
+    const topFamily = attractions.filter(p => p.isFamily).slice(0, 2);
+    const topScenic = attractions.filter(p => ['景点', '公园', '博物馆'].includes(p.type)).slice(0, 2);
+    const topRelax = attractions.filter(p => ['公园', '露营地', '景点'].includes(p.type)).slice(0, 2);
+    const topFood = foods.slice(0, 1);
+
+    return [
+        {
+            title: '半天遛娃轻松线',
+            subtitle: '适合周末上午/下午安排',
+            duration: '约 4-5 小时',
+            target: '亲子家庭',
+            stops: [...topFamily, ...topFood].filter(Boolean),
+            reason: '游玩强度适中，兼顾体验与补给。'
+        },
+        {
+            title: '城市出片约会线',
+            subtitle: '景点 + 公园 + 餐饮串联',
+            duration: '约 5-6 小时',
+            target: '情侣 / 朋友',
+            stops: [...topScenic, ...topFood].filter(Boolean),
+            reason: '适合拍照、散步和边走边吃。'
+        },
+        {
+            title: '周末放空慢游线',
+            subtitle: '公园 / 露营地优先',
+            duration: '半天到一天',
+            target: '朋友 / 独自',
+            stops: [...topRelax, ...topFood].filter(Boolean),
+            reason: '节奏慢、切换成本低，适合放松。'
+        }
+    ].filter(route => route.stops.length >= 2);
 }
 
 function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -930,9 +1124,113 @@ function rerenderSections() {
     renderFamilyPlaces(allPlaces);
     renderPopularPlaces(allPlaces);
     renderFoodPlaces(allPlaces);
+    renderTopicCards(allPlaces);
+    renderRouteCards(allPlaces);
+}
+
+function renderTopicCards(places) {
+    const topicCards = document.getElementById('topicCards');
+    if (!topicCards) return;
+
+    const topics = buildTopicCollections(places);
+    topicCards.innerHTML = '';
+
+    if (topics.length === 0) {
+        topicCards.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-ranking-star"></i>
+                <p>定位后将为你生成专题推荐</p>
+            </div>
+        `;
+        return;
+    }
+
+    topics.forEach(topic => {
+        const card = document.createElement('div');
+        card.className = 'topic-card';
+        card.innerHTML = `
+            <div class="topic-card-header">
+                <h3>${topic.title}</h3>
+                <span>${topic.places.length} 个候选</span>
+            </div>
+            <p>${topic.desc}</p>
+            <ul class="topic-list">
+                ${topic.places.slice(0, 3).map(place => `<li>${place.name}</li>`).join('')}
+            </ul>
+            <button class="topic-action-btn">查看专题</button>
+        `;
+        card.querySelector('.topic-action-btn').addEventListener('click', topic.action);
+        topicCards.appendChild(card);
+    });
+}
+
+function renderRouteCards(places) {
+    const routeCards = document.getElementById('routeCards');
+    if (!routeCards) return;
+
+    const routes = buildRoutePlans(places);
+    routeCards.innerHTML = '';
+
+    if (routes.length === 0) {
+        routeCards.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-route"></i>
+                <p>定位后将为你生成路线推荐</p>
+            </div>
+        `;
+        return;
+    }
+
+    routes.forEach(route => {
+        const card = document.createElement('div');
+        card.className = 'route-card';
+        card.innerHTML = `
+            <div class="route-card-header">
+                <div>
+                    <h3>${route.title}</h3>
+                    <p>${route.subtitle}</p>
+                </div>
+                <span class="route-duration">${route.duration}</span>
+            </div>
+            <div class="route-meta">适合：${route.target} · ${route.reason}</div>
+            <div class="route-stops">
+                ${route.stops.map((stop, index) => `<span class="route-stop">${index + 1}. ${stop.name}</span>`).join('')}
+            </div>
+            <button class="topic-action-btn">查看首站详情</button>
+        `;
+        card.querySelector('.topic-action-btn').addEventListener('click', () => openDetailModal(route.stops[0]));
+        routeCards.appendChild(card);
+    });
+}
+
+function applyScenarioFilters({ audience = 'all', weather = 'all', duration = 'all', budget = 'all', sort = 'popularity' }) {
+    const audienceFilter = document.getElementById('audienceFilter');
+    const weatherFilter = document.getElementById('weatherFilter');
+    const durationFilter = document.getElementById('durationFilter');
+    const budgetFilter = document.getElementById('budgetFilter');
+    const sortFilter = document.getElementById('sortFilter');
+
+    if (audienceFilter) audienceFilter.value = audience;
+    if (weatherFilter) weatherFilter.value = weather;
+    if (durationFilter) durationFilter.value = duration;
+    if (budgetFilter) budgetFilter.value = budget;
+    if (sortFilter) sortFilter.value = sort;
+
+    currentFilters.sort = sort;
+    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+    const allTab = document.querySelector('.category-tab[data-type="all"]');
+    if (allTab) allTab.classList.add('active');
+    currentType = 'all';
+    applyFilters();
+    document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function navigateToCategory(type) {
+    if (type === '美食') {
+        document.getElementById('food').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+    }
+
     document.querySelectorAll('.category-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.type === type);
     });
@@ -1060,6 +1358,10 @@ function initCategoryTabs() {
 function initFilters() {
     const distanceFilter = document.getElementById('distanceFilter');
     const sortFilter = document.getElementById('sortFilter');
+    const audienceFilter = document.getElementById('audienceFilter');
+    const durationFilter = document.getElementById('durationFilter');
+    const weatherFilter = document.getElementById('weatherFilter');
+    const budgetFilter = document.getElementById('budgetFilter');
 
     distanceFilter.addEventListener('change', (e) => {
         currentFilters.distanceFilterKm = e.target.value;
@@ -1078,10 +1380,18 @@ function initFilters() {
         currentFilters.sort = e.target.value;
         applyFilters();
     });
+
+    [audienceFilter, durationFilter, weatherFilter, budgetFilter].forEach(filter => {
+        filter.addEventListener('change', applyFilters);
+    });
 }
 
 function applyFilters() {
     let filtered = allPlaces.filter(p => p.type !== '美食');
+    const audienceValue = document.getElementById('audienceFilter')?.value || 'all';
+    const durationValue = document.getElementById('durationFilter')?.value || 'all';
+    const weatherValue = document.getElementById('weatherFilter')?.value || 'all';
+    const budgetValue = document.getElementById('budgetFilter')?.value || 'all';
 
     if (currentType !== 'all') {
         filtered = filtered.filter(p => p.type === currentType);
@@ -1090,6 +1400,22 @@ function applyFilters() {
     if (currentFilters.distanceFilterKm !== 'all') {
         const maxDistance = parseFloat(currentFilters.distanceFilterKm);
         filtered = filtered.filter(p => p.distance <= maxDistance);
+    }
+
+    if (audienceValue !== 'all') {
+        filtered = filtered.filter(p => p.audienceTags?.includes(audienceValue));
+    }
+
+    if (durationValue !== 'all') {
+        filtered = filtered.filter(p => p.durationBucket === durationValue);
+    }
+
+    if (weatherValue !== 'all') {
+        filtered = filtered.filter(p => p.weatherTag === weatherValue);
+    }
+
+    if (budgetValue !== 'all') {
+        filtered = filtered.filter(p => p.budgetLevel === budgetValue);
     }
 
     if (currentFilters.sort === 'distance') {
@@ -1207,6 +1533,7 @@ function openDetailModal(place) {
                 <div class="detail-tags">
                     <span class="detail-tag">${place.type}</span>
                     ${place.isFamily ? '<span class="detail-tag" style="background: var(--primary-pink);">亲子友好</span>' : ''}
+                    ${(place.themeTags || []).map(tag => `<span class="detail-tag detail-tag-soft">${tag}</span>`).join('')}
                 </div>
             </div>
             
@@ -1223,6 +1550,14 @@ function openDetailModal(place) {
                     <i class="fas fa-star"></i>
                     <span>${place.rating} 分</span>
                 </div>
+                <div class="info-item">
+                    <i class="fas fa-fire"></i>
+                    <span>热度 ${Math.round(getPopularityScore(place))}</span>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-clock"></i>
+                    <span>${place.durationLabel}</span>
+                </div>
                 ${place.tel ? `
                 <div class="info-item">
                     <i class="fas fa-phone"></i>
@@ -1237,6 +1572,32 @@ function openDetailModal(place) {
                 ` : ''}
             </div>
 
+            <div class="detail-fact-grid">
+                <div class="detail-fact-card">
+                    <strong>最佳时段</strong>
+                    <span>${place.bestTime}</span>
+                </div>
+                <div class="detail-fact-card">
+                    <strong>天气建议</strong>
+                    <span>${place.weatherTag === 'indoor' ? '雨天友好' : place.weatherTag === 'outdoor' ? '晴天更佳' : '四季皆宜'}</span>
+                </div>
+                <div class="detail-fact-card">
+                    <strong>拥挤程度</strong>
+                    <span>${place.crowdLevel}</span>
+                </div>
+                <div class="detail-fact-card">
+                    <strong>停车建议</strong>
+                    <span>${place.parkingTip}</span>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <h3><i class="fas fa-users"></i> 适合谁去</h3>
+                <div class="detail-chip-row">
+                    ${(place.audienceTags || []).map(tag => `<span class="detail-chip">${tag === 'family' ? '亲子家庭' : tag === 'couple' ? '情侣约会' : tag === 'friends' ? '朋友同游' : '独自放空'}</span>`).join('')}
+                </div>
+            </div>
+
             <div class="detail-section">
                 <h3><i class="fas fa-info-circle"></i> 景点介绍</h3>
                 <p>
@@ -1246,6 +1607,13 @@ function openDetailModal(place) {
                     <strong>💡 游玩小贴士：</strong>
                     <p style="margin-top: 5px; color: var(--text-secondary);">${place.tip || '周末人可能比较多，建议提前规划好行程，体验更佳哦！'}</p>
                 </div>
+            </div>
+
+            <div class="detail-section">
+                <h3><i class="fas fa-sparkles"></i> 推荐亮点</h3>
+                <ul class="detail-highlight-list">
+                    ${(place.highlights || []).map(item => `<li>${item}</li>`).join('')}
+                </ul>
             </div>
 
             <div class="detail-actions">
@@ -1349,4 +1717,6 @@ function initTags() {
 
 function initDefaultPlaces() {
     updateFavoritesSection();
+    renderTopicCards([]);
+    renderRouteCards([]);
 }
