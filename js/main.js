@@ -9,6 +9,9 @@ let currentFilters = {
     sort: 'distance'
 };
 let allPlaces = [];
+let latestSearchToken = 0;
+const searchCache = new Map();
+const SEARCH_CACHE_TTL = 2 * 60 * 1000;
 
 const AMAP_KEY = '5cc98010473dc9bf7343b87635e58bab';
 
@@ -438,24 +441,42 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
     }
 
     const radius = getSearchRadius();
+    const normalizedQuery = (searchQuery || '').trim();
+    const requestToken = ++latestSearchToken;
+    const cacheKey = `${lat.toFixed(4)}_${lng.toFixed(4)}_${radius}_${normalizedQuery}`;
+    const cacheHit = searchCache.get(cacheKey);
+    if (cacheHit && (Date.now() - cacheHit.timestamp) < SEARCH_CACHE_TTL) {
+        allPlaces = cacheHit.places;
+        renderNearbyPlaces(allPlaces);
+        renderFamilyPlaces(allPlaces);
+        renderPopularPlaces(allPlaces);
+        applyFilters();
+        updateMapMarkers(allPlaces);
+        return;
+    }
+
+    const categoryTypes = amapTypesMapping[searchQuery];
+    const presetTypes = [
+        '110000|110200',
+        '080100|080300',
+        '140100',
+        '050000',
+        '050500',
+        '110104|110100'
+    ];
+
     let fetchPromises = [];
 
-    // 如果是用户在搜索框输入的特定内容，直接单独查
-    if (searchQuery && !amapTypesMapping[searchQuery]) {
-        let url = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&keywords=${encodeURIComponent(searchQuery)}`;
-        fetchPromises.push(fetch(url).then(res => res.json()));
-    } else {
-        // 如果是初始化加载，或者请求特定通用大类，我们执行多线程并行检索，保证本地数据集丰满
-        const presetTypes = [
-            '110000|110200', // 名胜景区、景点
-            '080100|080300', // 公园、游乐场所/露营
-            '140100',        // 博物馆/美术馆
-            '050000',        // 餐厅
-            '050500',        // 咖啡厅/茶馆
-            '110104|110100'  // 动物园/植物园
+    if (searchQuery && !categoryTypes) {
+        const aroundUrl = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&keywords=${encodeURIComponent(searchQuery)}`;
+        const textUrl = `https://restapi.amap.com/v3/place/text?key=${AMAP_KEY}&offset=50&extensions=all&citylimit=false&location=${lng},${lat}&keywords=${encodeURIComponent(searchQuery)}`;
+        fetchPromises = [
+            fetch(aroundUrl).then(res => res.json()).catch(() => ({ status: '0', pois: [] })),
+            fetch(textUrl).then(res => res.json()).catch(() => ({ status: '0', pois: [] }))
         ];
-
-        fetchPromises = presetTypes.map(types => {
+    } else {
+        const requestTypes = categoryTypes ? [categoryTypes] : presetTypes;
+        fetchPromises = requestTypes.map(types => {
             return fetch(`https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&types=${types}`)
                 .then(res => res.json())
                 .catch(() => ({ status: '0', pois: [] }));
@@ -464,67 +485,83 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
 
     Promise.all(fetchPromises)
         .then(results => {
+            if (requestToken !== latestSearchToken) return;
+
             let allPois = [];
             results.forEach(data => {
-                if (data.status === '1' && data.pois) {
+                if (data.status === '1' && Array.isArray(data.pois)) {
                     allPois = allPois.concat(data.pois);
                 }
             });
 
-            // POI去重 (根据POI的ID)
             const uniquePoisMap = new Map();
             allPois.forEach(poi => {
-                uniquePoisMap.set(poi.id, poi);
+                if (poi && poi.id) {
+                    uniquePoisMap.set(poi.id, poi);
+                }
             });
             const uniquePois = Array.from(uniquePoisMap.values());
 
-            if (uniquePois.length > 0) {
-                // 深度过滤没用的设施（如停车场、厕所、各类大门、出入口）
-                let places = uniquePois
-                    .map(poi => processPOIData(poi, lat, lng))
-                    .filter(place => place !== null);
-
-                // 全局洗牌，让数据更好看一些
-                places = places.sort(() => 0.5 - Math.random());
-                
-                allPlaces = places;
-                
-                // 将数据分发到各个UI版块
-                renderNearbyPlaces(places);
-                renderFamilyPlaces(places);
-                renderPopularPlaces(places);
-                
-                // 为了避免手动搜索时覆盖当前tab逻辑：
-                applyFilters(); 
-                
-                updateMapMarkers(places);
-
-                // 如果是手动搜索关键词，由于是单次请求，让页面滚动到分类列表查看最直接结果
-                if (searchQuery && !amapTypesMapping[searchQuery]) {
-                    document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            } else {
-                if (nearbyCards) {
-                    nearbyCards.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-search"></i>
-                            <p>附近暂无推荐景点</p>
-                            <span>试试扩大搜索范围或更换搜索词</span>
-                        </div>
-                    `;
-                }
+            if (uniquePois.length === 0) {
+                allPlaces = [];
+                renderNearbyPlaces([]);
+                renderFamilyPlaces([]);
+                renderPopularPlaces([]);
+                applyFilters();
+                updateMapMarkers([]);
+                searchCache.set(cacheKey, { timestamp: Date.now(), places: [] });
+                return;
             }
-                `;
+
+            let places = uniquePois
+                .map(poi => processPOIData(poi, lat, lng))
+                .filter(place => place !== null);
+
+            if (searchQuery) {
+                const normalizedQuery = searchQuery.toLowerCase();
+                places = places.filter(place => (
+                    place.name.toLowerCase().includes(normalizedQuery) ||
+                    place.typeDesc.toLowerCase().includes(normalizedQuery) ||
+                    place.address.toLowerCase().includes(normalizedQuery)
+                ));
+            }
+
+            places.sort((a, b) => {
+                if (searchQuery) {
+                    const query = searchQuery.toLowerCase();
+                    const aStarts = a.name.toLowerCase().startsWith(query) ? 1 : 0;
+                    const bStarts = b.name.toLowerCase().startsWith(query) ? 1 : 0;
+                    if (aStarts !== bStarts) return bStarts - aStarts;
+                }
+
+                const aRating = Number.isFinite(a.rating) ? a.rating : (parseFloat(a.rating) || 0);
+                const bRating = Number.isFinite(b.rating) ? b.rating : (parseFloat(b.rating) || 0);
+                if (aRating !== bRating) return bRating - aRating;
+                return a.distance - b.distance;
+            });
+
+            allPlaces = places;
+            searchCache.set(cacheKey, { timestamp: Date.now(), places });
+            renderNearbyPlaces(places);
+            renderFamilyPlaces(places);
+            renderPopularPlaces(places);
+            applyFilters();
+            updateMapMarkers(places);
+
+            if (searchQuery && !amapTypesMapping[searchQuery]) {
+                document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         })
         .catch(error => {
             console.error('POI搜索失败:', error);
-            nearbyCards.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <p>搜索失败，请稍后重试</p>
-                </div>
-            `;
+            if (nearbyCards) {
+                nearbyCards.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>搜索失败，请稍后重试</p>
+                    </div>
+                `;
+            }
         });
 }
 
@@ -533,29 +570,35 @@ function processPOIData(poi, userLat, userLng) {
     const typeDesc = poi.type || '';
     const typecode = poi.typecode || '';
 
-    // 强力过滤无用POI对象：停车场、洗手间、售票处、附属设施等
     const excludeKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施'];
     if (excludeKeywords.some(keyword => poiName.includes(keyword) || typeDesc.includes(keyword))) {
-        return null; // 直接丢弃该条数据
+        return null;
+    }
+
+    if (!poi.location || !poi.location.includes(',')) {
+        return null;
     }
 
     const location = poi.location.split(',');
     const poiLng = parseFloat(location[0]);
     const poiLat = parseFloat(location[1]);
 
+    if (!Number.isFinite(poiLng) || !Number.isFinite(poiLat)) {
+        return null;
+    }
+
     const distance = calculateDistance(userLat, userLng, poiLat, poiLng);
 
-    // 基于typecode的前缀或完整匹配进行精准分类
     let type = '景点';
     if (typecode.startsWith('110104') || typecode.startsWith('110100') || typeDesc.includes('动物') || typeDesc.includes('水族') || poiName.includes('动物') || poiName.includes('海洋')) {
         type = '动物园';
-    } else if (typecode.startsWith('0803') || typeDesc.includes('游乐') || poiName.includes('游乐') || poiName.includes('主题')) {
+    } else if (typecode.startsWith('0803') || typeDesc.includes('游乐') || poiName.includes('游乐') || poiName.includes('乐园') || poiName.includes('主题')) {
         type = '游乐场';
     } else if (typecode.startsWith('1401') || typeDesc.includes('博物馆') || typeDesc.includes('科技馆') || typeDesc.includes('美术馆')) {
         type = '博物馆';
     } else if (typecode.startsWith('080101') || typecode.startsWith('080100') || typecode.startsWith('110105') || typeDesc.includes('公园')) {
         type = '公园';
-    } else if (typecode.startsWith('080304') || typeDesc.includes('露营') || typeDesc.includes('度假') || typeDesc.includes('农家乐')) {
+    } else if (typecode.startsWith('080304') || typeDesc.includes('露营') || typeDesc.includes('营地') || typeDesc.includes('度假') || typeDesc.includes('农家乐')) {
         type = '露营地';
     } else if (typecode.startsWith('0505') || typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('饮品')) {
         type = '咖啡馆';
@@ -564,26 +607,32 @@ function processPOIData(poi, userLat, userLng) {
     } else if (typecode.startsWith('1102') || typecode.startsWith('1100') || typeDesc.includes('风景名胜')) {
         type = '景点';
     }
-        "这里环境很棒，记得带上相机多拍几张照片哦！",
-        "周边配套齐全，吃喝玩乐一条龙，非常便利。",
-        "周末人可能比较多，建议错峰出行，体验更佳。",
-        "不管是情侣约会还是家庭出游，这里都是个不错的选择。",
-        "可以带上一点防蚊液和防晒霜，以备不时之需。",
-        "这里是个隐藏的宝藏打卡地，出片率极高！"
+
+    const tipsPool = [
+        '建议游玩时长：2-3小时，适合周末放松。',
+        '这里环境很棒，记得带上相机多拍几张照片哦！',
+        '周边配套齐全，吃喝玩乐一条龙，非常便利。',
+        '周末人可能比较多，建议错峰出行，体验更佳。',
+        '不管是情侣约会还是家庭出游，这里都是个不错的选择。',
+        '可以带上一点防蚊液和防晒霜，以备不时之需。',
+        '这里是个隐藏的宝藏打卡地，出片率极高！'
     ];
+
+    const fallbackAddress = [poi.pname, poi.cityname, poi.adname].filter(Boolean).join('');
+    const ratingValue = parseFloat(poi.biz_ext?.rating);
 
     return {
         id: poi.id,
         name: poi.name,
-        type: type,
-        typeDesc: typeDesc,
-        address: poi.address || poi.pname + poi.cityname + poi.adname,
-        distance: distance,
+        type,
+        typeDesc,
+        address: poi.address || fallbackAddress || '暂无地址信息',
+        distance,
         distanceText: formatDistance(distance),
         lat: poiLat,
         lng: poiLng,
         tel: poi.tel || '',
-        rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : (3.5 + Math.random() * 1.5).toFixed(1),
+        rating: Number.isFinite(ratingValue) ? ratingValue : parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
         cost: poi.biz_ext?.cost || '',
         photos: poi.photos?.map(p => p.url) || [],
         image: poi.photos?.[0]?.url || `https://picsum.photos/600/400?random=${encodeURIComponent(poi.id)}`,
