@@ -426,59 +426,94 @@ function searchLocationByAddress(address) {
         });
 }
 
-function searchNearbyPlaces(lat, lng, type = '') {
+function searchNearbyPlaces(lat, lng, searchQuery = '') {
     const nearbyCards = document.getElementById('nearbyCards');
-    nearbyCards.innerHTML = `
-        <div class="empty-state">
-            <div class="loading-spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
-            <p>正在搜索周边景点...</p>
-        </div>
-    `;
-
-    let keywords = '';
-    let types = '110000|080100|080300|140100|050000|050500'; // 默认包含核心吃喝玩乐分类
-    
-    // 如果用户传了明确的分类/标签，则精准映射到高德Types，而不是模糊的keywords
-    if (type) {
-        if (amapTypesMapping[type]) {
-            types = amapTypesMapping[type];
-            keywords = ''; 
-        } else {
-            // 如果不在预设里（如用户手动输入搜索词），则走关键词
-            keywords = type;
-            types = '';
-        }
+    if (nearbyCards) {
+        nearbyCards.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
+                <p>正在拉取各大平台网红数据...</p>
+            </div>
+        `;
     }
-    
+
     const radius = getSearchRadius();
-    
-    // sortrule=weight 按综合热度/权重排序，避免因为距离排序导致全是被塞满的无名小公园
-    let url = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight`;
-    if (keywords) url += `&keywords=${encodeURIComponent(keywords)}`;
-    if (types) url += `&types=${types}`;
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === '1' && data.pois && data.pois.length > 0) {
+    let fetchPromises = [];
+
+    // 如果是用户在搜索框输入的特定内容，直接单独查
+    if (searchQuery && !amapTypesMapping[searchQuery]) {
+        let url = `https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&keywords=${encodeURIComponent(searchQuery)}`;
+        fetchPromises.push(fetch(url).then(res => res.json()));
+    } else {
+        // 如果是初始化加载，或者请求特定通用大类，我们执行多线程并行检索，保证本地数据集丰满
+        const presetTypes = [
+            '110000|110200', // 名胜景区、景点
+            '080100|080300', // 公园、游乐场所/露营
+            '140100',        // 博物馆/美术馆
+            '050000',        // 餐厅
+            '050500',        // 咖啡厅/茶馆
+            '110104|110100'  // 动物园/植物园
+        ];
+
+        fetchPromises = presetTypes.map(types => {
+            return fetch(`https://restapi.amap.com/v3/place/around?key=${AMAP_KEY}&location=${lng},${lat}&radius=${radius}&offset=50&extensions=all&sortrule=weight&types=${types}`)
+                .then(res => res.json())
+                .catch(() => ({ status: '0', pois: [] }));
+        });
+    }
+
+    Promise.all(fetchPromises)
+        .then(results => {
+            let allPois = [];
+            results.forEach(data => {
+                if (data.status === '1' && data.pois) {
+                    allPois = allPois.concat(data.pois);
+                }
+            });
+
+            // POI去重 (根据POI的ID)
+            const uniquePoisMap = new Map();
+            allPois.forEach(poi => {
+                uniquePoisMap.set(poi.id, poi);
+            });
+            const uniquePois = Array.from(uniquePoisMap.values());
+
+            if (uniquePois.length > 0) {
                 // 深度过滤没用的设施（如停车场、厕所、各类大门、出入口）
-                const places = data.pois
+                let places = uniquePois
                     .map(poi => processPOIData(poi, lat, lng))
                     .filter(place => place !== null);
-                    
+
+                // 全局洗牌，让数据更好看一些
+                places = places.sort(() => 0.5 - Math.random());
+                
                 allPlaces = places;
+                
+                // 将数据分发到各个UI版块
                 renderNearbyPlaces(places);
                 renderFamilyPlaces(places);
-                renderCategoryCards(places);
                 renderPopularPlaces(places);
+                
+                // 为了避免手动搜索时覆盖当前tab逻辑：
+                applyFilters(); 
+                
                 updateMapMarkers(places);
+
+                // 如果是手动搜索关键词，由于是单次请求，让页面滚动到分类列表查看最直接结果
+                if (searchQuery && !amapTypesMapping[searchQuery]) {
+                    document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             } else {
-                nearbyCards.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-search"></i>
-                        <p>附近暂无推荐景点</p>
-                        <span>试试扩大搜索范围或更换分类</span>
-                    </div>
+                if (nearbyCards) {
+                    nearbyCards.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-search"></i>
+                            <p>附近暂无推荐景点</p>
+                            <span>试试扩大搜索范围或更换搜索词</span>
+                        </div>
+                    `;
+                }
+            }
                 `;
             }
         })
@@ -792,6 +827,12 @@ function initSearch() {
         if (!query) return;
 
         if (currentLocation) {
+            // 重置分类tab，防止刚搜出来的结果被当前激活的tab过滤掉
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            const allTab = document.querySelector('.category-tab[data-type="all"]');
+            if (allTab) allTab.classList.add('active');
+            currentType = 'all';
+
             searchNearbyPlaces(currentLocation.lat, currentLocation.lng, query);
         } else {
             const filtered = allPlaces.filter(place => 
@@ -1010,14 +1051,10 @@ function initTags() {
             const targetTab = document.querySelector(`.category-tab[data-type="${type}"]`);
             if (targetTab) {
                 targetTab.classList.add('active');
-                currentType = type;
             }
             
-            if (currentLocation) {
-                searchNearbyPlaces(currentLocation.lat, currentLocation.lng, typeMapping[type] || type);
-            } else {
-                applyFilters();
-            }
+            currentType = type;
+            applyFilters();
         });
     });
 }
