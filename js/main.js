@@ -404,25 +404,29 @@ function updateMapMarkers(places) {
     poiMarkers = [];
     
     places.forEach(place => {
-        const poiMarker = new AMap.Marker({
-            position: [place.lng, place.lat],
-            title: place.name
-        });
-        
-        poiMarker.on('click', () => {
-            openDetailModal(place);
-        });
-        
-        poiMarker.setMap(map);
-        poiMarkers.push(poiMarker);
-        
-        // 保存marker的引用以供hover联动使用
-        place.marker = poiMarker;
+        try {
+            const poiMarker = new AMap.Marker({
+                position: [place.lng, place.lat],
+                title: place.name
+            });
+            
+            poiMarker.on('click', () => {
+                openDetailModal(place);
+            });
+            
+            poiMarker.setMap(map);
+            poiMarkers.push(poiMarker);
+            
+            // 保存marker的引用以供hover联动使用
+            place.marker = poiMarker;
+        } catch (error) {
+            console.error('地图标记渲染失败:', place?.name || place?.id || 'unknown', error);
+        }
     });
     
     // 如果有结果，调整地图视野适应所有标点
     if (poiMarkers.length > 0 && marker) {
-        map.setFitView([marker, ...poiMarkers]);
+        safeRun('地图视野调整', () => map.setFitView([marker, ...poiMarkers]));
     }
 }
 
@@ -542,7 +546,14 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
             }
 
             let places = uniquePois
-                .map(poi => processPOIData(poi, lat, lng))
+                .map(poi => {
+                    try {
+                        return processPOIData(poi, lat, lng);
+                    } catch (error) {
+                        console.error('POI数据处理失败:', poi?.name || poi?.id || 'unknown', error);
+                        return null;
+                    }
+                })
                 .filter(place => place !== null)
                 .filter(place => allowedPlaceTypes.includes(place.type));
 
@@ -573,9 +584,9 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
             resetSectionVisibleCounts();
             searchCache.set(cacheKey, { timestamp: Date.now(), places });
             pruneSearchCache();
-            rerenderSections();
-            applyFilters();
-            updateMapMarkers(places);
+            safeRun('主内容渲染', () => rerenderSections());
+            safeRun('分类筛选渲染', () => applyFilters());
+            safeRun('地图标记渲染', () => updateMapMarkers(places));
 
             if (normalizedQuery && !amapTypesMapping[normalizedQuery]) {
                 document.getElementById('category').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -999,8 +1010,31 @@ function formatDistance(km) {
     return km.toFixed(1) + 'km';
 }
 
+function safeRun(label, task) {
+    try {
+        return task();
+    } catch (error) {
+        console.error(`${label}执行失败:`, error);
+        return null;
+    }
+}
+
+function appendPlaceCards(container, places) {
+    if (!container) return;
+
+    places.forEach(place => {
+        try {
+            container.appendChild(createPlaceCard(place));
+        } catch (error) {
+            console.error('卡片渲染失败:', place?.name || place?.id || 'unknown', error);
+        }
+    });
+}
+
 function renderNearbyPlaces(places) {
     const nearbyCards = document.getElementById('nearbyCards');
+    if (!nearbyCards) return;
+
     const source = [...places]
         .filter(p => p.type !== '美食')
         .sort((a, b) => b.rating - a.rating || a.distance - b.distance);
@@ -1017,9 +1051,8 @@ function renderNearbyPlaces(places) {
         `;
         return;
     }
-    sorted.forEach(place => {
-        nearbyCards.appendChild(createPlaceCard(place));
-    });
+
+    appendPlaceCards(nearbyCards, sorted);
 
     updateSectionLoadMoreButton('nearby', source.length);
 }
@@ -1041,9 +1074,7 @@ function renderFamilyPlaces(places) {
         return;
     }
     
-    familyPlaces.forEach(place => {
-        familyCards.appendChild(createPlaceCard(place));
-    });
+    appendPlaceCards(familyCards, familyPlaces);
 
     updateSectionLoadMoreButton('family', familySource.length);
 }
@@ -1057,9 +1088,7 @@ function renderPopularPlaces(places) {
     const popular = popularSource.slice(0, sectionVisibleCounts.popular);
     
     popularCards.innerHTML = '';
-    popular.forEach(place => {
-        popularCards.appendChild(createPlaceCard(place));
-    });
+    appendPlaceCards(popularCards, popular);
 
     updateSectionLoadMoreButton('popular', popularSource.length);
 }
@@ -1084,9 +1113,7 @@ function renderFoodPlaces(places) {
         return;
     }
 
-    foods.forEach(place => {
-        foodCards.appendChild(createPlaceCard(place));
-    });
+    appendPlaceCards(foodCards, foods);
 
     updateSectionLoadMoreButton('food', foodSource.length);
 }
@@ -1107,9 +1134,7 @@ function renderCategoryCards(places) {
         return;
     }
 
-    places.forEach(place => {
-        categoryCards.appendChild(createPlaceCard(place));
-    });
+    appendPlaceCards(categoryCards, places);
 }
 
 function initSectionMoreButtons() {
@@ -1725,9 +1750,7 @@ function updateFavoritesSection() {
             return;
         }
         
-        favoritePlaces.forEach(place => {
-            favoritesCards.appendChild(createPlaceCard(place));
-        });
+        appendPlaceCards(favoritesCards, favoritePlaces);
     }
 }
 
