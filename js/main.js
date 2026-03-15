@@ -38,18 +38,18 @@ const typeMapping = {
 };
 
 const amapTypesMapping = {
-    '公园': '080101|080100|110105',
-    '游乐场': '080300|110302',
+    '公园': '110101|110102|110103',
+    '游乐场': '080501|080505|110000',
     '博物馆': '140100',
-    '动物园': '110104|110100',
-    '露营地': '080304',
+    '动物园': '110104|110202|110000',
+    '露营地': '080504|080500',
     '美食': '050000|050100|050200|050300|050400|050500',
-    '景点': '110000|110200|110206'
+    '景点': '110000|110200|110202|110201'
 };
 
 const allowedPlaceTypes = ['公园', '游乐场', '博物馆', '动物园', '露营地', '景点', '美食'];
 const excludePoiKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施', '棋牌', '麻将', '台球', '健身', '瑜伽', '酒吧', '网吧', '足浴', '洗浴'];
-const excludeTypeKeywords = ['体育休闲服务', '运动场馆', '休闲场所', '生活服务', '会所'];
+const excludeTypeKeywords = ['运动场馆', '生活服务', '会所', '酒吧', '网吧', '棋牌室', '洗浴推拿', '足疗保健', 'KTV'];
 
 const familyTypes = ['公园', '游乐场', '博物馆', '动物园'];
 
@@ -486,10 +486,10 @@ function searchNearbyPlaces(lat, lng, searchQuery = '', forceRefresh = false) {
 
     const categoryTypes = amapTypesMapping[normalizedQuery];
     const presetTypes = [
-        '110000|110200',
-        '080100|080300',
+        '110000|110100|110200',
+        '080500|080501|080504|080505',
         '140100',
-        '110104|110100',
+        '110104|110202',
         '050000|050100|050200|050300|050400|050500'
     ];
 
@@ -634,27 +634,64 @@ function processPOIData(poi, userLat, userLng) {
     const distance = calculateDistance(userLat, userLng, poiLat, poiLng);
 
     let type = '景点';
-    if (typecode.startsWith('110104') || typecode.startsWith('110100') || typeDesc.includes('动物') || typeDesc.includes('水族') || poiName.includes('动物') || poiName.includes('海洋')) {
+    if (
+        typecode.startsWith('110104') ||
+        poiName.includes('动物园') ||
+        poiName.includes('野生动物') ||
+        poiName.includes('海洋公园') ||
+        poiName.includes('海洋馆') ||
+        poiName.includes('水族馆') ||
+        typeDesc.includes('动物园') ||
+        typeDesc.includes('水族') ||
+        typeDesc.includes('海洋馆')
+    ) {
         type = '动物园';
     } else if (
+        typecode.startsWith('080501') ||
+        typecode.startsWith('080505') ||
         typeDesc.includes('游乐') ||
+        typeDesc.includes('主题乐园') ||
+        typeDesc.includes('水上乐园') ||
         poiName.includes('游乐') ||
         poiName.includes('乐园') ||
         poiName.includes('主题') ||
         poiName.includes('摩天轮') ||
         poiName.includes('过山车') ||
-        typecode.startsWith('110302')
+        poiName.includes('水世界')
     ) {
         type = '游乐场';
     } else if (typecode.startsWith('1401') || typeDesc.includes('博物馆') || typeDesc.includes('科技馆') || typeDesc.includes('美术馆')) {
         type = '博物馆';
-    } else if (typecode.startsWith('080101') || typecode.startsWith('080100') || typecode.startsWith('110105') || typeDesc.includes('公园')) {
+    } else if (
+        typecode.startsWith('110101') ||
+        typecode.startsWith('110102') ||
+        typecode.startsWith('110103') ||
+        typeDesc.includes('公园') ||
+        typeDesc.includes('植物园') ||
+        typeDesc.includes('森林公园') ||
+        typeDesc.includes('湿地')
+    ) {
         type = '公园';
-    } else if (typecode.startsWith('080304') || typeDesc.includes('露营') || typeDesc.includes('营地') || typeDesc.includes('度假') || typeDesc.includes('农家乐')) {
+    } else if (
+        typecode.startsWith('080504') ||
+        (typecode.startsWith('080500') && (poiName.includes('营地') || poiName.includes('露营') || typeDesc.includes('露营'))) ||
+        typeDesc.includes('露营') ||
+        typeDesc.includes('营地') ||
+        poiName.includes('营地') ||
+        poiName.includes('露营')
+    ) {
         type = '露营地';
     } else if (typecode.startsWith('05') || typeDesc.includes('餐饮') || typeDesc.includes('美食') || typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('小吃')) {
         type = '美食';
-    } else if (typecode.startsWith('1102') || typecode.startsWith('1100') || typeDesc.includes('风景名胜') || typeDesc.includes('景区') || typeDesc.includes('古迹')) {
+    } else if (
+        typecode.startsWith('1102') ||
+        typecode.startsWith('1100') ||
+        typeDesc.includes('风景名胜') ||
+        typeDesc.includes('景区') ||
+        typeDesc.includes('古迹') ||
+        typeDesc.includes('旅游景点') ||
+        typeDesc.includes('度假区')
+    ) {
         type = '景点';
     } else {
         return null;
