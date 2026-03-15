@@ -664,6 +664,14 @@ function processPOIData(poi, userLat, userLng) {
         rating: finalRating,
         cost: poi.biz_ext?.cost || ''
     });
+    const popularityBase = calculatePopularityBase({
+        rating: finalRating,
+        distance,
+        photoCount: Array.isArray(poi.photos) ? poi.photos.length : 0,
+        hasTel: !!(poi.tel && poi.tel.trim()),
+        hasCost: !!poi.biz_ext?.cost,
+        type
+    });
 
     return {
         id: poi.id,
@@ -682,8 +690,25 @@ function processPOIData(poi, userLat, userLng) {
         image: poi.photos?.[0]?.url || `https://picsum.photos/600/400?random=${encodeURIComponent(poi.id)}`,
         isFamily: familyTypes.includes(type),
         intro,
+        popularityBase,
         tip: tipsPool[Math.floor(Math.random() * tipsPool.length)]
     };
+}
+
+function calculatePopularityBase({ rating, distance, photoCount, hasTel, hasCost, type }) {
+    const normalizedRating = Math.max(0, Math.min(100, (rating / 5) * 55));
+    const distanceKm = Math.max(0.05, distance);
+    const distanceScore = Math.max(0, 25 - (distanceKm * 2.2));
+    const mediaScore = Math.min(10, photoCount * 2.5);
+    const infoScore = (hasTel ? 4 : 0) + (hasCost ? 4 : 0);
+    const typeScore = ['景点', '游乐场', '动物园', '博物馆'].includes(type) ? 6 : 3;
+
+    return Math.max(0, Math.min(100, normalizedRating + distanceScore + mediaScore + infoScore + typeScore));
+}
+
+function getPopularityScore(place) {
+    const favoriteBoost = favorites.includes(place.id) ? 8 : 0;
+    return Math.max(0, Math.min(100, (place.popularityBase || 0) + favoriteBoost));
 }
 
 function buildDetailedIntro({ name, type, typeDesc, address, distanceText, rating, cost }) {
@@ -772,7 +797,7 @@ function renderPopularPlaces(places) {
     if (!popularCards) return;
     const popular = [...places]
         .filter(p => p.type !== '美食')
-        .sort((a, b) => b.rating - a.rating || a.distance - b.distance)
+        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance)
         .slice(0, 6);
     
     popularCards.innerHTML = '';
@@ -787,7 +812,7 @@ function renderFoodPlaces(places) {
 
     const foods = [...places]
         .filter(p => p.type === '美食')
-        .sort((a, b) => b.rating - a.rating || a.distance - b.distance)
+        .sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance)
         .slice(0, 6);
 
     foodCards.innerHTML = '';
@@ -854,6 +879,10 @@ function createPlaceCard(place) {
                     <i class="fas fa-star"></i>
                     ${place.rating}
                 </span>
+                <span class="meta-item">
+                    <i class="fas fa-fire"></i>
+                    热度 ${Math.round(getPopularityScore(place))}
+                </span>
             </div>
         </div>
     `;
@@ -900,6 +929,9 @@ function toggleFavorite(id, btn) {
     }
     localStorage.setItem('favorites', JSON.stringify(favorites));
     updateFavoritesSection();
+    renderPopularPlaces(allPlaces);
+    renderFoodPlaces(allPlaces);
+    applyFilters();
 }
 
 function initCategoryTabs() {
@@ -947,7 +979,7 @@ function applyFilters() {
     } else if (currentFilters.sort === 'rating') {
         filtered.sort((a, b) => b.rating - a.rating);
     } else if (currentFilters.sort === 'popularity') {
-        filtered.sort((a, b) => b.rating - a.rating || a.distance - b.distance);
+        filtered.sort((a, b) => getPopularityScore(b) - getPopularityScore(a) || b.rating - a.rating || a.distance - b.distance);
     }
 
     renderCategoryCards(filtered);
