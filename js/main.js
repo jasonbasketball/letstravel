@@ -5,7 +5,8 @@ let marker = null;
 let placeSearch = null;
 let currentType = 'all';
 let currentFilters = {
-    distance: 'all',
+    radius: 5000,
+    distanceFilterKm: 'all',
     sort: 'distance'
 };
 let allPlaces = [];
@@ -22,21 +23,21 @@ const typeMapping = {
     '博物馆': '博物馆',
     '动物园': '动物园',
     '露营地': '露营地',
-    '咖啡馆': '咖啡馆',
-    '餐厅': '餐厅',
     '景点': '景点'
 };
 
 const amapTypesMapping = {
     '公园': '080101|080100|110105',
-    '游乐场': '080300',
+    '游乐场': '080300|110302',
     '博物馆': '140100',
     '动物园': '110104|110100',
-    '露营地': '080300|080304',
-    '咖啡馆': '050500',
-    '餐厅': '050000',
+    '露营地': '080304',
     '景点': '110000|110200|110206'
 };
+
+const allowedPlaceTypes = ['公园', '游乐场', '博物馆', '动物园', '露营地', '景点'];
+const excludePoiKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施', '棋牌', '麻将', '台球', '健身', '瑜伽', '酒吧', '网吧', '足浴', '洗浴'];
+const excludeTypeKeywords = ['体育休闲服务', '运动场馆', '休闲场所', '生活服务', '会所'];
 
 const familyTypes = ['公园', '游乐场', '博物馆', '动物园'];
 
@@ -213,7 +214,7 @@ function initRadiusSetting() {
 
     radiusOptions.forEach(option => {
         option.addEventListener('change', (e) => {
-            currentFilters.distance = parseInt(e.target.value);
+            currentFilters.radius = parseInt(e.target.value);
             updateRadiusDisplay();
             if (currentLocation) {
                 searchNearbyPlaces(currentLocation.lat, currentLocation.lng);
@@ -224,7 +225,7 @@ function initRadiusSetting() {
     applyCustomRadiusBtn.addEventListener('click', () => {
         const customValue = parseInt(customRadiusInput.value);
         if (customValue && customValue >= 500 && customValue <= 100000) {
-            currentFilters.distance = customValue;
+            currentFilters.radius = customValue;
             radiusOptions.forEach(opt => opt.checked = false);
             updateRadiusDisplay();
             if (currentLocation) {
@@ -243,9 +244,9 @@ function initRadiusSetting() {
 }
 
 function updateRadiusDisplay() {
-    const radiusText = currentFilters.distance >= 1000 
-        ? (currentFilters.distance / 1000) + 'km' 
-        : currentFilters.distance + 'm';
+    const radiusText = currentFilters.radius >= 1000
+        ? (currentFilters.radius / 1000) + 'km'
+        : currentFilters.radius + 'm';
     
     const nearbyDesc = document.getElementById('nearbyDesc');
     if (nearbyDesc) {
@@ -254,7 +255,7 @@ function updateRadiusDisplay() {
 }
 
 function getSearchRadius() {
-    return currentFilters.distance === 'all' ? 50000 : currentFilters.distance;
+    return currentFilters.radius;
 }
 
 function getCurrentLocation() {
@@ -461,8 +462,6 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
         '110000|110200',
         '080100|080300',
         '140100',
-        '050000',
-        '050500',
         '110104|110100'
     ];
 
@@ -517,7 +516,8 @@ function searchNearbyPlaces(lat, lng, searchQuery = '') {
 
             let places = uniquePois
                 .map(poi => processPOIData(poi, lat, lng))
-                .filter(place => place !== null);
+                .filter(place => place !== null)
+                .filter(place => allowedPlaceTypes.includes(place.type));
 
             if (searchQuery) {
                 const normalizedQuery = searchQuery.toLowerCase();
@@ -585,8 +585,11 @@ function processPOIData(poi, userLat, userLng) {
     const typeDesc = poi.type || '';
     const typecode = poi.typecode || '';
 
-    const excludeKeywords = ['停车场', '厕所', '洗手间', '公交', '大门', '入口', '出口', '售票处', '服务中心', '内部设施'];
-    if (excludeKeywords.some(keyword => poiName.includes(keyword) || typeDesc.includes(keyword))) {
+    if (excludePoiKeywords.some(keyword => poiName.includes(keyword) || typeDesc.includes(keyword))) {
+        return null;
+    }
+
+    if (excludeTypeKeywords.some(keyword => typeDesc.includes(keyword))) {
         return null;
     }
 
@@ -607,7 +610,15 @@ function processPOIData(poi, userLat, userLng) {
     let type = '景点';
     if (typecode.startsWith('110104') || typecode.startsWith('110100') || typeDesc.includes('动物') || typeDesc.includes('水族') || poiName.includes('动物') || poiName.includes('海洋')) {
         type = '动物园';
-    } else if (typecode.startsWith('0803') || typeDesc.includes('游乐') || poiName.includes('游乐') || poiName.includes('乐园') || poiName.includes('主题')) {
+    } else if (
+        typeDesc.includes('游乐') ||
+        poiName.includes('游乐') ||
+        poiName.includes('乐园') ||
+        poiName.includes('主题') ||
+        poiName.includes('摩天轮') ||
+        poiName.includes('过山车') ||
+        typecode.startsWith('110302')
+    ) {
         type = '游乐场';
     } else if (typecode.startsWith('1401') || typeDesc.includes('博物馆') || typeDesc.includes('科技馆') || typeDesc.includes('美术馆')) {
         type = '博物馆';
@@ -615,12 +626,10 @@ function processPOIData(poi, userLat, userLng) {
         type = '公园';
     } else if (typecode.startsWith('080304') || typeDesc.includes('露营') || typeDesc.includes('营地') || typeDesc.includes('度假') || typeDesc.includes('农家乐')) {
         type = '露营地';
-    } else if (typecode.startsWith('0505') || typeDesc.includes('咖啡') || typeDesc.includes('茶馆') || typeDesc.includes('饮品')) {
-        type = '咖啡馆';
-    } else if (typecode.startsWith('0500') || typecode.startsWith('0501') || typecode.startsWith('0502') || typecode.startsWith('0503') || typecode.startsWith('0504') || typeDesc.includes('餐厅') || typeDesc.includes('餐饮') || typeDesc.includes('美食')) {
-        type = '餐厅';
-    } else if (typecode.startsWith('1102') || typecode.startsWith('1100') || typeDesc.includes('风景名胜')) {
+    } else if (typecode.startsWith('1102') || typecode.startsWith('1100') || typeDesc.includes('风景名胜') || typeDesc.includes('景区') || typeDesc.includes('古迹')) {
         type = '景点';
+    } else {
+        return null;
     }
 
     const tipsPool = [
@@ -840,7 +849,7 @@ function initFilters() {
     const sortFilter = document.getElementById('sortFilter');
 
     distanceFilter.addEventListener('change', (e) => {
-        currentFilters.distance = e.target.value;
+        currentFilters.distanceFilterKm = e.target.value;
         applyFilters();
     });
 
@@ -857,8 +866,8 @@ function applyFilters() {
         filtered = filtered.filter(p => p.type === currentType);
     }
 
-    if (currentFilters.distance !== 'all') {
-        const maxDistance = parseFloat(currentFilters.distance);
+    if (currentFilters.distanceFilterKm !== 'all') {
+        const maxDistance = parseFloat(currentFilters.distanceFilterKm);
         filtered = filtered.filter(p => p.distance <= maxDistance);
     }
 
