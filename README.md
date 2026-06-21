@@ -55,13 +55,47 @@
 ```
 letstravel/
 ├── css/
-│   └── style.css          # 样式文件
+│   └── style.css              # 样式文件
 ├── js/
-│   ├── main.js            # 主要功能逻辑
-│   └── data.js            # 数据文件
-├── .gitignore            # Git忽略文件
-├── index.html            # 主页面
-└── README.md             # 项目说明
+│   ├── config.js              # 配置加载器
+│   ├── config.json            # API密钥配置（gitignore）
+│   ├── config.example.json    # 配置模板
+│   ├── main.js                # 主入口
+│   └── modules/
+│       ├── utils.js           # 通用工具
+│       ├── poi-processor.js   # POI数据处理
+│       ├── search.js          # 搜索与缓存
+│       ├── favorites.js       # 收藏管理
+│       ├── map.js             # 地图封装
+│       ├── location.js        # 定位
+│       └── renderer.js        # 渲染
+├── .gitignore
+├── index.html
+└── README.md
+```
+
+## 项目结构
+
+```
+letstravel/
+├── css/
+│   └── style.css              # 样式文件
+├── js/
+│   ├── config.js              # 配置加载器（自动加载 config.json）
+│   ├── config.json            # API密钥配置（已gitignore，不提交）
+│   ├── config.example.json    # 配置模板（提交到仓库供参考）
+│   ├── main.js                # 主入口，协调各模块
+│   └── modules/
+│       ├── utils.js           # 通用工具（转义、fetch超时、距离计算）
+│       ├── poi-processor.js   # POI数据处理与分类
+│       ├── search.js          # 搜索与缓存
+│       ├── favorites.js       # 收藏管理
+│       ├── map.js             # 高德地图封装
+│       ├── location.js        # 定位与地址搜索
+│       └── renderer.js        # DOM渲染（含XSS防护）
+├── .gitignore                 # Git忽略文件
+├── index.html                 # 主页面
+└── README.md                  # 项目说明
 ```
 
 ## 高德地图API配置
@@ -70,7 +104,24 @@ letstravel/
 - Web服务密钥：用于地理编码和POI搜索
 - Web端(JS API)密钥：用于地图显示
 
-这些密钥已经在代码中配置好，无需修改。
+### 配置方式
+
+1. 复制 `js/config.example.json` 为 `js/config.json`
+2. 填入你自己的高德API密钥
+3. `js/config.json` 已在 `.gitignore` 中，不会被提交
+
+```json
+{
+  "amap": {
+    "jsApiKey": "你的JS API密钥",
+    "webServiceKey": "你的Web服务密钥",
+    "securityJsCode": "你的安全密钥"
+  }
+}
+```
+
+> **安全建议**：请在高德开放平台为你的密钥设置域名白名单，限制只有你的网站域名可以使用。
+> 即使密钥泄露，其他域名也无法调用你的API。
 
 ## 许可证
 

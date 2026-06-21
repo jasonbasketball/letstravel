@@ -17,3 +17,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# API Keys (do NOT commit real keys — use config.example.json as template)
+js/config.json

@@ -1,0 +1,7 @@
+{
+  "amap": {
+    "jsApiKey": "YOUR_JS_API_KEY",
+    "webServiceKey": "YOUR_WEB_SERVICE_KEY",
+    "securityJsCode": "YOUR_SECURITY_JS_CODE"
+  }
+}
